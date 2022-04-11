@@ -15,22 +15,14 @@ cliStart :: IO String
 cliStart = do
     putStrLn "Welcome to h-scheduler, start scheduling with sch"
     input <- getLine
-    case maybe input of 
-      Just "sch" -> scheduler
-      Just "help" -> help
-      Nothing -> putStrLn "Try again!"
+    return "unfinished"
 
 help :: IO String
 help = return "help"
 
 scheduler :: IO String
 scheduler = return ""
---TODO:
--- set defaults
--- options
-----datetime format
-----multiple events
-----recurrance
-----type of events
-----
+
+
+
  
