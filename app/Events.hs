@@ -1,9 +1,11 @@
+
+
+module Events where
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeFamilies      #-}
 
-module Events where
 
 import Data.Void
 import Control.Applicative
