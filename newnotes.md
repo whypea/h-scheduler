@@ -27,9 +27,9 @@ icalendar file printing options
     -- unlikely to be of use
 -- ordered list -> disordered list -> rest? (free time)
     -Ordered list -> Deterministic state shop
-    -Prioritized list -> 
-    -Unordred list
--- every
+    -Prioritized list -> Job shop
+    -Unordred list -> Project
+-- every 
 
 -- https://datatracker.ietf.org/doc/html/rfc5545#section-3.3
 --Make a parser for this
