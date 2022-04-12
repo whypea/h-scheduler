@@ -47,8 +47,7 @@ data VrRule = VrRule
     ,rReoccur :: Integer
     ,rInterval :: Integer
     ,rbyMonth :: Maybe Integer
-    ,rbyDay :: 
-
+    ,rbyDay :: Maybe Integer
     }
 --Cutting out some of the choices
 data Vrfreq = HOURLY | DAILY | WEEKLY | MONTHLY | YEARLY deriving (Show, Eq, Ord)
@@ -86,10 +85,9 @@ pSemiC = intersperse ";"
 -- dayP =satisfy (\x -> )
 --take utc time as day-month-year, get timezone convert into something workable
 
-dayParser :: String -> TParser Integer
-dayParser s= do
-             let str = s
-             pI <- parse
+-- dayParser :: String -> TParser Integer
+-- dayParser s= do
+--              let str = s
 
 timeParser :: TParser Text
 timeParser = do

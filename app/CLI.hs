@@ -6,7 +6,7 @@ import Control.Applicative
 import  Text.Megaparsec
 import  Text.Megaparsec.Char
 import Data.Time
---import Options.Applicative 
+import Options.Applicative 
 
 type Parser = Parsec Void String 
 

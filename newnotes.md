@@ -50,6 +50,8 @@ cli should print the
     -- 3am (mon)   -> closest (monday)
     -- 5 times     -> frequency  
     -- asap?       -> check other events, category
+    -- every       -> byMonth/byYear
+    -- x times     -> 
 
 
 --TODO:

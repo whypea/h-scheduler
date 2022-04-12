@@ -12,7 +12,9 @@ import Data.Time
 import Data.Text ( Text, pack, intersperse )
 import Control.Monad.Trans.State (StateT)
 
---nextDay :: Text -> Megaparsec
 
---nextMonth
+type MParser = ParsecT Void Text (State [String])
+--nextDay :: Text -> Day
+
+--nextMonth :: Day -> Day 
 --next
