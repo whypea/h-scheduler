@@ -1,33 +1,46 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE DataKinds      #-}
 module InputParsers where
+
 import Events
 import Data.Void
-import Control.Applicative
+-- import Control.Applicative
 import  Text.Megaparsec
 import  Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
 import Data.Time
+
 import Data.Text ( Text, pack, intersperse )
 import Control.Monad.Trans.State (StateT)
 
 
-type MParser = ParsecT Void Text (State [String])
+type MParser = Parsec Void String 
 
+--(State [String])
 
-getDay :: Mparser Text
-getDay = do choice [string "mon" <* string "day",
-string "tue" <* string "day"
-string "wen" <* string "day"
-string "thurs" <* string "day"
-string "fri" <* string "day"
-string "satur" <* string "day"
-string "sun" <* string "day"
-] where 
+getDay :: MParser DayOfWeek
+getDay = do gday <- choice [
+             Monday <$ string' "mon" <* many alphaNumChar,
+             Tuesday <$ string' "tue"<* many alphaNumChar , 
+             Wednesday <$ string' "wed" <* many alphaNumChar, 
+             Thursday <$ string' "thu" <* many alphaNumChar, 
+             Friday <$ string' "fri"<* many alphaNumChar, 
+             Saturday <$ string' "sat" <* many alphaNumChar, 
+             Sunday <$ string' "sun" <* many alphaNumChar]
+            return gday
 
+--how to extract value from the parser? 
 
---nextDay :: Text -> Day
+nextWeekday :: DayOfWeek -> Day -> Day -- -> UTCTime -> UTCTime 
+nextWeekday wd now = addDays now x
+ where diff = fromEnum wd - fromEnum . dayOfWeek now
+       x = if diff < 0 then -diff else 7 - diff
+
+--day of week on date . then toEnum on day .  (UTCTime)
+-- getMonth :: MParser 
+-- getMonth = undefined
 
 --nextMonth :: Day -> Day 
 --next

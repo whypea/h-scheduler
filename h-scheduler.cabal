@@ -25,13 +25,15 @@ executable h-scheduler
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    other-modules: CLI.hs, Events.hs, inputParsers.hs, Solver.hs
+    other-modules: CLI, Events, InputParsers, Solver 
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
-    build-depends:    base ^>=4.14.3.0, 
-                      transformers >= 0.5.6, 
-                      time >= 1.12.1, 
+    build-depends:    base ^>=4.14.3.0,
+                      ghc >= 8.10.5, 
+                      transformers >= 0.5.6,
+                      text >= 1.2, 
+                      time >= 1.9.3, 
                       megaparsec >= 9.2.0,
                       optparse-applicative >= 0.16.0.0
     hs-source-dirs:   app

@@ -1,10 +1,10 @@
 
-
-module Events where
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeFamilies      #-}
+module Events where
+
 
 
 import Data.Void
@@ -24,6 +24,8 @@ import GHC.Conc (pseq)
 
 data Event a = Calendar a | Event a| Todo a
 data Datetime = Dt Integer Integer Integer deriving (Show, Eq, Ord)
+
+
 
 type UID = String
 --Types for iCal
@@ -55,6 +57,7 @@ data VrRule = VrRule
 data Vrfreq = HOURLY | DAILY | WEEKLY | MONTHLY | YEARLY deriving (Show, Eq, Ord)
 
 
+
 data Vcalendar = Vcalendar
     { cProdId     :: Text
     , cVersion    :: Text
@@ -80,7 +83,7 @@ pEND :: IO Text
 pEND = pure "END:"
 
 pSemiC :: Text -> Text
-pSemiC = intersperse ";" 
+pSemiC = intersperse ';' 
 
 
 -- dayP :: Tparser String

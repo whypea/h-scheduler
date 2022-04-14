@@ -10,6 +10,12 @@ import Options.Applicative
 
 type Parser = Parsec Void String 
 
+data Opts = Opts {
+    defaults :: [String]
+    ,bfill    :: Bool
+    ,verbose  :: Bool 
+}
+
 
 cliStart :: IO String
 cliStart = do

@@ -8,10 +8,17 @@
 
 input
     either a new user-generated ics
-    or a file to be modified
+    or a file to be modifie
+    options
+        asking for more options if they aren't filled out?
+        defaults for options?
+        be verbose?
+
 input is parsed (newFile ) into Data.Time (Day/time), Timezone
     what do I do with a parser/megaparsec/optparse?
-Day/time will be distributed 
+Day/time will be distributed by the solver, 
+    SOLVER IS THE MOST DIFFICULT PART OF THIS
+
 
 
 icalendar file printing options
@@ -26,10 +33,10 @@ icalendar file printing options
 -- (X) Sleep time, other free time
     -- unlikely to be of use
 -- ordered list -> disordered list -> rest? (free time)
+    -return 
     -Ordered list -> Deterministic state shop
     -Prioritized list -> Job shop
     -Unordred list -> Project
--- every 
 
 -- https://datatracker.ietf.org/doc/html/rfc5545#section-3.3
 --Make a parser for this
@@ -40,7 +47,7 @@ icalendar file printing options
     -- name = iana-token / x-name
     -- iana-token    = 1*(ALPHA / DIGIT / "-")
 
-cli should print the 
+cli should print an entire calendar/change one
 
 
 --shorthands (with try)
@@ -54,9 +61,8 @@ cli should print the
     -- x times     -> 
 
 
---TODO:
 -- set defaults
--- options
+-- options and printer
 ----datetime format
 ----multiple events
 ----recurrance
