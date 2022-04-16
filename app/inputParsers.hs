@@ -31,12 +31,15 @@ getDay = do gday <- choice [
              Sunday <$ string' "sun" <* many alphaNumChar]
             return gday
 
+getrFreq :: Mparser 
+
+
 --how to extract value from the parser? 
 
 nextWeekday :: DayOfWeek -> Day -> Day -- -> UTCTime -> UTCTime 
-nextWeekday wd now = addDays now x
- where diff = fromEnum wd - fromEnum . dayOfWeek now
-       x = if diff < 0 then -diff else 7 - diff
+nextWeekday wd now = addDays x now
+ where x = if diff < 0 then (-diff :: Integer) else 7 - (diff :: Integer)
+       diff =(fromEnum wd) - (fromEnum $dayOfWeek now)
 
 --day of week on date . then toEnum on day .  (UTCTime)
 -- getMonth :: MParser 

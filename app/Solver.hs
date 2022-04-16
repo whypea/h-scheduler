@@ -6,15 +6,17 @@ import Data.Time ( UTCTime )
 
 
 --UTCTime: yyyy-mm-ddThh:mm:ss
-data Constraint = Ordered [UTCTime] | Deadline [UTCTime] | Prio [Priority] | Unordered [UTCTime]
+data Constraint = Ordered [UTCTime] | Deadline [UTCTime] | Prio [Priority] | Unordered [Todo]
 
-data Priority = Priority UTCTime Int
+data Priority = Priority String UTCTime Int
+
+data Todo = Todo String Int
 
 --constrSolve
 
-----orderSolve
+----orderSolve before a given time
 
-----dlSolve
+----dlSolve 
 
 ----prioSolve
 

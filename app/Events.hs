@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeFamilies      #-}
+
 module Events where
 
 
@@ -44,6 +45,8 @@ data Vevent = Vevent
     ,eRRule :: Maybe Text
     } deriving (Show, Eq, Ord)
 
+newtype MT = Maybe Text 
+
 data VrRule = VrRule
     {
     rFreq    :: Vrfreq
@@ -53,10 +56,13 @@ data VrRule = VrRule
     ,rbyMonth :: Maybe Integer
     ,rbyDay :: Maybe Integer
     }
+--instance show VrRule where
+
 --Cutting out some of the choices
-data Vrfreq = HOURLY | DAILY | WEEKLY | MONTHLY | YEARLY deriving (Show, Eq, Ord)
+data Vrfreq = HOURLY | DAILY | WEEKLY | MONTHLY | YEARLY 
+ deriving (Show, Eq, Ord)
 
-
+data Test = Test (Maybe Int) deriving (Show, Read)
 
 data Vcalendar = Vcalendar
     { cProdId     :: Text
@@ -64,8 +70,9 @@ data Vcalendar = Vcalendar
     , cScale      :: Text
     , cTimeZones  :: Text
     , cEvents     :: [Vevent]
-    } deriving (Show, Eq, Ord, Typeable)
+    } deriving ( Eq, Ord, Typeable)
 
+--instance Show Vcalendar where
 
 type TParser = Parsec Void String
 type ShParser = Parsec Void Text
