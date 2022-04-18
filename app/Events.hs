@@ -1,16 +1,13 @@
-
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE FlexibleContexts   #-}
 
 module Events where
-
-
-
 import Data.Void
 import Control.Applicative
-import  Text.Megaparsec
+import Text.Megaparsec ( Parsec )
 import  Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
@@ -26,9 +23,7 @@ import GHC.Conc (pseq)
 data Event a = Calendar a | Event a| Todo a
 data Datetime = Dt Integer Integer Integer deriving (Show, Eq, Ord)
 
-
-
-type UID = String
+type UID = Text  
 --Types for iCal
 data Vevent = Vevent
     {
@@ -43,20 +38,31 @@ data Vevent = Vevent
     ,eRecur :: Maybe Text
     ,eAlarm :: Maybe Text
     ,eRRule :: Maybe Text
-    } deriving (Show, Eq, Ord)
-
-newtype MT = Maybe Text 
-
-data VrRule = VrRule
-    {
-    rFreq    :: Vrfreq
-    ,rUntil  :: Day
-    ,rReoccur :: Integer
-    ,rInterval :: Integer
-    ,rbyMonth :: Maybe Integer
-    ,rbyDay :: Maybe Integer
     }
---instance show VrRule where
+
+newtype MT a= MT {a :: Maybe a}
+
+instance Show a => Show (MT a) where
+    show (MT (Just a)) = show a
+    show (MT Nothing) = show ""
+
+
+-- data VrRule = VrRule
+--     {
+--     rFreq    :: Vrfreq
+--     ,rUntil  :: Day
+--     ,rReoccur :: Integer
+--     ,rInterval :: Integer
+--     ,rbyMonth :: Maybe Integer
+--     ,rbyDay :: Maybe Integer
+--     }
+
+data VRule = R Vrfreq (MT Day) (MT Integer) (MT Integer) (MT Integer) (MT Integer) 
+
+--more pattern matches for mutual exclusivity?
+instance Show VRule where
+  show (R freq d reocc int mon day) = 
+      "RRULE:" ++ "FREQ:" ++ show freq ++ ";" ++ "UNTIL:" ++ show d  ++ ";" ++ "COUNT:" ++ show reocc ++  ";" ++ "INTERVAL:" ++ show int ++ ";" ++"BYMONTH:" ++ show mon ++ ";" ++ "BYDAY:" ++ show day
 
 --Cutting out some of the choices
 data Vrfreq = HOURLY | DAILY | WEEKLY | MONTHLY | YEARLY 
@@ -65,12 +71,13 @@ data Vrfreq = HOURLY | DAILY | WEEKLY | MONTHLY | YEARLY
 data Test = Test (Maybe Int) deriving (Show, Read)
 
 data Vcalendar = Vcalendar
-    { cProdId     :: Text
+    { 
+    cProdId       :: Text
     , cVersion    :: Text
     , cScale      :: Text
     , cTimeZones  :: Text
     , cEvents     :: [Vevent]
-    } deriving ( Eq, Ord, Typeable)
+    }
 
 --instance Show Vcalendar where
 

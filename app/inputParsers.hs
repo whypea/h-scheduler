@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE DataKinds      #-}
 module InputParsers where
 
@@ -18,8 +19,6 @@ import Control.Monad.Trans.State (StateT)
 
 type MParser = Parsec Void String 
 
---(State [String])
-
 getDay :: MParser DayOfWeek
 getDay = do gday <- choice [
              Monday <$ string' "mon" <* many alphaNumChar,
@@ -31,14 +30,25 @@ getDay = do gday <- choice [
              Sunday <$ string' "sun" <* many alphaNumChar]
             return gday
 
-getrFreq :: Mparser 
+-- getrFreq :: MParser Vrfreq
+-- getrFreq = do freq <- choice [ 
+--                HOURLY  <$ hour, 
+--                DAILY   <$ (try string' "daily" <|> string "every day"), 
+--                WEEKLY  <$ (try string' "weekly" <|> string "every week"), 
+--                MONTHLY <$ (try string' "monthly" <|> string "every month"), 
+--                YEARLY  <$ (try string' "yearly" <|> string "every year")]
+--               return freq
+--             where hour = string' "hourly" <|> string' "every hour"
+-- getISO :: MParser UTCTime
+-- getISO = do 
+-- 
 
 
 --how to extract value from the parser? 
 
 nextWeekday :: DayOfWeek -> Day -> Day -- -> UTCTime -> UTCTime 
 nextWeekday wd now = addDays x now
- where x = if diff < 0 then (-diff :: Integer) else 7 - (diff :: Integer)
+ where x = if diff < 0 then (-toInteger diff) else 7 - (toInteger diff)
        diff =(fromEnum wd) - (fromEnum $dayOfWeek now)
 
 --day of week on date . then toEnum on day .  (UTCTime)
