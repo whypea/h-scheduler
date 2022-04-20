@@ -26,17 +26,23 @@ type CState = State [Constraint] [Constraint]
 
 --constrSolve
 
+--
+
 ----orderSolve before a given time, use State
 orderSolve ::  [Ordered] -> CState  
-orderSolve ords = undefined 
+orderSolve ords = do 
+                    lst <- ords
+                    until (lst == []) state fillS 
+                where fillS = undefined 
+
 ----dlSolve 
-dlSolve :: [Deadline] -> CState
-dlSolve dl = undefined 
+dlSolve :: [Deadline] -> [Constraint] -> CState
+dlSolve dl = undefined
 
-----prioSolve
-prioSolve :: [Priority] -> CState
+-- ----prioSolve
+prioSolve :: [Priority] -> [Constraint] -> CState
 prioSolve = undefined
-----unorderedSolve
+-- ----unorderedSolve
 
-unorderedSolve :: [Todo] -> CState
+unorderedSolve :: [Todo] -> [Constraint] -> CState
 unorderedSolve todos = undefined
