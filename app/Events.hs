@@ -23,7 +23,7 @@ import GHC.Conc (pseq)
 data Event a = Calendar a | Event a| Todo a
 data Datetime = Dt Integer Integer Integer deriving (Show, Eq, Ord)
 
-type UID = Text  
+type UID = Text
 --Types for iCal
 data Vevent = Vevent
     {
@@ -31,47 +31,78 @@ data Vevent = Vevent
     ,eUID     :: UID
     ,eClass   :: Text
     ,eDTStart :: Datetime
-    ,eDescription :: Maybe Text
-    ,ePrio :: Maybe Text
-    ,eSeq :: Maybe Text
-    ,eTimeTrans :: Maybe Text
-    ,eRecur :: Maybe Text
-    ,eAlarm :: Maybe Text
-    ,eRRule :: Maybe Text
+    ,eDescription :: MT Text
+    ,ePrio :: MT Text
+    ,eSeq :: MT Text
+    ,eTimeTrans :: MT Text
+    ,eRecur :: MT Text
+    ,eAlarm :: MT Text
+    ,eRRule :: MT Text
     }
 
-newtype MT a= MT {a :: Maybe a}
+--TODO
+instance Show Vevent where
+     show (Vevent stamp uid eclass start desc prio seq timet recur alarm rrule) =
+         ""
 
-instance Show a => Show (MT a) where
-    show (MT (Just a)) = show a
-    show (MT Nothing) = show ""
+-- newtype MT a= MT {a :: Maybe a}
+
+-- instance Show a => Show (MT a) where
+--     show (MT (Just a)) = show a
+--     show (MT Nothing) = show ""
+
+data VrRule = VrRule
+    {
+    rFreq      :: Vrfreq
+    ,rUntil    :: Day
+    ,rReoccur  :: Reoccur
+    ,rInterval :: Interval
+    ,rbyMonth  :: ByMonth
+    ,rbyDay    :: ByDay
+    }
+
+newtype Reoccur = Reoccur (Maybe Integer)
+
+instance Show Reoccur where
+    show (Reoccur (Just a)) = "COUNT:" ++ show a
+    show (Reoccur Nothing) = ""
+
+newtype Interval = Interval (Maybe Integer)
+
+instance Show Interval where
+    show (Interval (Just a)) = "INTERVAL:" ++ show a
+    show (Interval Nothing) = ""
+
+newtype ByMonth = ByMonth (Maybe Integer)
+
+instance Show ByMonth where
+    show (ByMonth (Just a)) = "BYMONTH:" ++ show a
+    show (ByMonth Nothing) = ""
 
 
--- data VrRule = VrRule
---     {
---     rFreq    :: Vrfreq
---     ,rUntil  :: Day
---     ,rReoccur :: Integer
---     ,rInterval :: Integer
---     ,rbyMonth :: Maybe Integer
---     ,rbyDay :: Maybe Integer
---     }
+newtype ByDay = ByDay (Maybe Integer)
 
-data VRule = R Vrfreq (MT Day) (MT Integer) (MT Integer) (MT Integer) (MT Integer) 
+instance Show ByDay where
+    show (ByDay (Just a)) = "BYDAY:" ++ show a
+    show (ByDay Nothing) = ""
+
+-- instance Show VrRule where
+--     show (VrRule rFreq rUntil rReoccur rInterval rbyMonth rbyDay) = 
+
+data VRule = R Vrfreq (MT Day) (MT Integer) (MT Integer) (MT Integer) (MT Integer)
 
 --more pattern matches for mutual exclusivity?
 instance Show VRule where
-  show (R freq d reocc int mon day) = 
-      "RRULE:" ++ "FREQ:" ++ show freq ++ ";" ++ "UNTIL:" ++ show d  ++ ";" ++ "COUNT:" ++ show reocc ++  ";" ++ "INTERVAL:" ++ show int ++ ";" ++"BYMONTH:" ++ show mon ++ ";" ++ "BYDAY:" ++ show day
-
+  show (R freq d reocc int mon day) =
+      "RRULE:" ++ "FREQ:" ++ show freq ++ ";" ++ "UNTIL:" ++ show d  ++ ";"
+      ++ "COUNT:" ++ show reocc ++  ";" ++ "INTERVAL:" ++ show int ++ ";" ++"BYMONTH:"
+      ++ show mon ++ ";" ++ "BYDAY:" ++ show day
 --Cutting out some of the choices
-data Vrfreq = HOURLY | DAILY | WEEKLY | MONTHLY | YEARLY 
+data Vrfreq = HOURLY | DAILY | WEEKLY | MONTHLY | YEARLY
  deriving (Show, Eq, Ord)
 
-data Test = Test (Maybe Int) deriving (Show, Read)
-
 data Vcalendar = Vcalendar
-    { 
+    {
     cProdId       :: Text
     , cVersion    :: Text
     , cScale      :: Text
@@ -85,10 +116,6 @@ type TParser = Parsec Void String
 type ShParser = Parsec Void Text
 type MyStack a = StateT Day TParser a
 
-date :: IO (Integer,Int,Int) -- :: (year,month,day)
-date = getCurrentTime >>= return . toGregorian . utctDay
-
-
 --printers
 pBegin :: IO Text
 pBegin = pure "BEGIN:"
@@ -97,7 +124,7 @@ pEND :: IO Text
 pEND = pure "END:"
 
 pSemiC :: Text -> Text
-pSemiC = intersperse ';' 
+pSemiC = intersperse ';'
 
 
 -- dayP :: Tparser String
@@ -108,12 +135,6 @@ pSemiC = intersperse ';'
 -- dayParser s= do
 --              let str = s
 
-timeParser :: TParser Text
-timeParser = do
-    let utctime = unsafePerformIO $ show <$> date
-
-
-    return (pack utctime)
 
 
 
