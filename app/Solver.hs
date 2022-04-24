@@ -10,7 +10,7 @@ import Events
 
 
 --UTCTime: yyyy-mm-ddThh:mm:ss
-data Constraint = Constraint {time :: Maybe UTCTime, desc :: Text, prio :: Maybe Int }
+data Constraint = Constraint {time :: Maybe UTCTime, desc :: Text, prio :: Maybe Integer }
 
 data Constraints o d p t = C [o] [d] [p] [t]
 
@@ -18,9 +18,9 @@ data Ordered = Ordered {oDesc :: Text, oTime :: UTCTime}
 
 data Deadline = DL {dDesc :: Text, dTime :: UTCTime}
 
-data Priority = Priority {pDesc :: Text, pTime :: UTCTime}
+data Priority = Priority {pDesc :: Text, pTime :: UTCTime, pprio :: Integer}
 
-data Todo = Todo {tDesc :: Text, tTime :: UTCTime}
+data Todo = Todo {tDesc :: Text, tTime :: UTCTime, tprio:: Integer}
 
 type CState = State [Constraint] [Constraint]
 
@@ -28,21 +28,25 @@ type CState = State [Constraint] [Constraint]
 
 --
 
-----orderSolve before a given time, use State
-orderSolve ::  [Ordered] -> CState  
-orderSolve ords = do 
-                    lst <- ords
-                    until (lst == []) state fillS 
-                where fillS = undefined 
+----orderSolve for a given time, 
+--how to use State to collate all the answers?  
+-- orderSolve ::  [Ordered] -> CState  
+-- orderSolve ords = do 
+--                     let o = ords
+--                     until (lst == []) state fillS
+--                     return 
 
-----dlSolve 
-dlSolve :: [Deadline] -> [Constraint] -> CState
-dlSolve dl = undefined
+-- fillS :: [Ordered] -> [Priority]
+-- fillS x:xs =  undefined
 
--- ----prioSolve
-prioSolve :: [Priority] -> [Constraint] -> CState
-prioSolve = undefined
--- ----unorderedSolve
+-- ----dlSolve 
+-- dlSolve :: [Deadline] -> [Constraint] -> CState
+-- dlSolve dl = undefined
 
-unorderedSolve :: [Todo] -> [Constraint] -> CState
-unorderedSolve todos = undefined
+-- -- ----prioSolve
+-- prioSolve :: [Priority] -> [Constraint] -> CState
+-- prioSolve = undefined
+-- -- ----unorderedSolve
+
+-- unorderedSolve :: [Todo] -> [Constraint] -> CState
+-- unorderedSolve todos = undefined

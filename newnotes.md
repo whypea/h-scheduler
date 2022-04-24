@@ -51,7 +51,7 @@ cli should print an entire calendar/change one
 
 
 --shorthands (with try)
-    -- Mon(day)    -> closest monday
+    -- Mon(day)    -> closest monday x
     -- 0103        -> closest 1st of march
     --"in a year"  -> from today
     -- 3am (mon)   -> closest (monday)
@@ -61,9 +61,16 @@ cli should print an entire calendar/change one
     -- x times     -> 
 
 
--- set defaults
+-- set defaults 
 -- options and printer
 ----datetime format
 ----multiple events
 ----recurrance
 ----type of events
+
+--utkast
+--leap = (\x -> (x `mod` 4 == 0) /= (x `mod` 100 /= 0 && x `mod` 400 == 0))
+--satisfy (\x -> x > 0 && x < (monthLength (isLeapYear year) month)) day
+--satisfy (\x -> (x > 2000 && x <= 2022) || (x <= 22)) year 
+--satisfy (\x -> (x <= 12)) month
+
