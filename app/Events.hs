@@ -19,9 +19,7 @@ import Data.Data
 import Control.Monad.Trans.State (StateT)
 import GHC.Conc (pseq)
 
-
-data Event a = Calendar a | Event a| Todo a
-data Datetime = Dt Integer Integer Integer deriving (Show, Eq, Ord)
+type Datetime = Day
 
 type UID = Text
 --Types for iCal
@@ -45,11 +43,11 @@ instance Show Vevent where
      show (Vevent stamp uid eclass start desc prio seq timet recur alarm rrule) =
          ""
 
--- newtype MT a= MT {a :: Maybe a}
+newtype MT a= MT {a :: Maybe a}
 
--- instance Show a => Show (MT a) where
---     show (MT (Just a)) = show a
---     show (MT Nothing) = show ""
+instance Show a => Show (MT a) where
+    show (MT (Just a)) = show a
+    show (MT Nothing) = show ""
 
 data VrRule = VrRule
     {
