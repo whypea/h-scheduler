@@ -1,5 +1,10 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Use newtype instead of data" #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE DataKinds      #-}
+{-# LANGUAGE BlockArguments      #-}
 module Solver where
 
 import qualified Control.Monad.Trans.Class as Trans
@@ -10,11 +15,11 @@ import Events
 
 
 --UTCTime: yyyy-mm-ddThh:mm:ss
-data Constraint = Constraint {time :: Maybe UTCTime, desc :: Text, prio :: Maybe Integer }
+data Constraint = Constraint {desc :: Text, time :: Maybe UTCTime , prio :: Maybe Integer }
 
 data Constraints o d p t = C [o] [d] [p] [t]
 
-data Ordered = Ordered {oDesc :: Text, oTime :: UTCTime} 
+data Ordered = Ordered {oDesc :: Text, oTime :: UTCTime}
 
 data Deadline = DL {dDesc :: Text, dTime :: UTCTime}
 
@@ -28,25 +33,36 @@ type CState = State [Constraint] [Constraint]
 
 --
 
-----orderSolve for a given time, 
---how to use State to collate all the answers?  
+--orderSolve for a given time, 
+--how to use State to collate all the answers?
+--  
 -- orderSolve ::  [Ordered] -> CState  
 -- orderSolve ords = do 
 --                     let o = ords
 --                     until (lst == []) state fillS
 --                     return 
 
--- fillS :: [Ordered] -> [Priority]
--- fillS x:xs =  undefined
+orderSolve :: [Ordered] -> [Constraint]
+orderSolve = fmap fillOC 
 
--- ----dlSolve 
--- dlSolve :: [Deadline] -> [Constraint] -> CState
--- dlSolve dl = undefined
+fillOC :: Ordered -> Constraint
+fillOC (Ordered oDesc oTime) = Constraint oDesc (Just oTime) Nothing
+
+
+----dlSolve 
+dlSolve :: [Deadline] -> [Constraint] 
+dlSolve dl = undefined
+
+fillDC :: Deadline -> Constraint
+fillDC (DL dDesc dTime) = Constraint dDesc (Just dTime) Nothing
 
 -- -- ----prioSolve
--- prioSolve :: [Priority] -> [Constraint] -> CState
--- prioSolve = undefined
+prioSolve :: [Priority] -> [Constraint] -> CState
+prioSolve = undefined
 -- -- ----unorderedSolve
+
+fillPC :: Priority -> Constraint
+fillPC (Priority pDesc pTime pprio) = Constraint pDesc (Just pTime) (Just pprio)
 
 -- unorderedSolve :: [Todo] -> [Constraint] -> CState
 -- unorderedSolve todos = undefined

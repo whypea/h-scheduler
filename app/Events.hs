@@ -37,11 +37,17 @@ data Vevent = Vevent
     ,eAlarm :: MT Text
     ,eRRule :: MT Text
     }
+-- concat $zipWith (++) (fmap show [eDTstamp, eUID ,eClass,eDTStart,eDescription,ePrio,eSeq,eTimeTrans,eRecur,eAlarm,eRRule])
+-- concat $zipWith (++) (fmap show [eDTstamp, eUID ,eClass,eDTStart,eDescription,ePrio,eSeq,eTimeTrans,eRecur,eAlarm,eRRule])
+-- ["DATETIME","UID:", "CLASS:", "DTSTART:", "DESCRIPTION", "PRIORITY:", "SEQUENCE:", "TRANSP:", "RECUR:", "ALARM:", "RRULE:"]--TODO
 
---TODO
 instance Show Vevent where
      show (Vevent stamp uid eclass start desc prio seq timet recur alarm rrule) =
-         ""
+         "BEGIN: VEVENT" ++ "DATETIME: "++ show stamp ++ ";" ++  "UID:" ++ ";"  ++ show uid 
+         ++ "CLASS:" ++ show eclass ++ ";" ++ "DTSTART:" 
+         ++ show start ++ ";" ++ "DESCRIPTION:" ++ show desc ++ ";" ++ "PRIORITY:" ++ 
+         show prio ++ ";" ++ "SEQUENCE:" ++ show seq ++ ";"++ "TRANSP:" ++ show timet++ ";" ++ 
+         "RECUR:" ++ show recur ++ ";" ++ "ALARM:" ++ show alarm ++ ";" ++ "RRULE:" ++ show rrule 
 
 newtype MT a= MT {a :: Maybe a}
 
@@ -65,7 +71,7 @@ instance Show Reoccur where
     show (Reoccur (Just a)) = "COUNT:" ++ show a
     show (Reoccur Nothing) = ""
 
-newtype Interval = Interval (Maybe Integer)
+newtype Interval = Interval (Maybe String)
 
 instance Show Interval where
     show (Interval (Just a)) = "INTERVAL:" ++ show a
@@ -89,11 +95,16 @@ instance Show ByDay where
 
 data VRule = R Vrfreq (MT Day) (MT Integer) (MT Integer) (MT Integer) (MT Integer)
 
---more pattern matches for mutual exclusivity?
+-- The UNTIL or COUNT rule parts are OPTIONAL, but they MUST NOT occur in the same 'recur'.
+--replace with something like intersperse 
 instance Show VRule where
-  show (R freq d reocc int mon day) =
-      "RRULE:" ++ "FREQ:" ++ show freq ++ ";" ++ "UNTIL:" ++ show d  ++ ";"
-      ++ "COUNT:" ++ show reocc ++  ";" ++ "INTERVAL:" ++ show int ++ ";" ++"BYMONTH:"
+  show (R freq reocc (MT Nothing) int mon day) =
+      "RRULE:" ++ "FREQ:" ++ show freq ++ ";" ++ "UNTIL:" ++ show reocc  ++ ";"
+       ++  ";" ++ "INTERVAL:" ++ show int ++ ";" ++"BYMONTH:"
+      ++ show mon ++ ";" ++ "BYDAY:" ++ show day
+  show (R freq d reocc int mon day) = 
+      "RRULE:" ++ "FREQ:" ++ show freq ++ ";" ++ "UNTIL:" ++ show reocc  ++ ";"
+      ++ "INTERVAL:" ++ show int ++ ";" ++"BYMONTH:"
       ++ show mon ++ ";" ++ "BYDAY:" ++ show day
 --Cutting out some of the choices
 data Vrfreq = HOURLY | DAILY | WEEKLY | MONTHLY | YEARLY
@@ -108,8 +119,8 @@ data Vcalendar = Vcalendar
     , cEvents     :: [Vevent]
     }
 
---instance Show Vcalendar where
-
+instance Show Vcalendar where
+    show (Vcalendar cProdId version scale tz events) = "BEGIN:" ++ "VERSION: " ++ show version ++ "SCALE: "
 type TParser = Parsec Void String
 type ShParser = Parsec Void Text
 type MyStack a = StateT Day TParser a
@@ -124,14 +135,6 @@ pEND = pure "END:"
 pSemiC :: Text -> Text
 pSemiC = intersperse ';'
 
-
--- dayP :: Tparser String
--- dayP =satisfy (\x -> )
---take utc time as day-month-year, get timezone convert into something workable
-
--- dayParser :: String -> TParser Integer
--- dayParser s= do
---              let str = s
 
 
 
