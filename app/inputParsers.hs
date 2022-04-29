@@ -14,6 +14,7 @@ import  Text.Megaparsec
 import  Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
+import Data.Char
 import Data.Void
 import Data.Time
 import Data.Time.Calendar.MonthDay
@@ -43,8 +44,8 @@ gregMonth x = sel2 (toGregorian $utctDay x)
 gregDay :: UTCTime -> Int 
 gregDay x = sel3 (toGregorian $utctDay x)
 
--- makeUTCTime :: Day -> DiffTime -> UTCTime
--- makeUTCTime day time = 
+makeUTCTime :: Day -> DiffTime -> UTCTime
+makeUTCTime day time = UTCTime (day) (time)  
 
 ---- !Parsers
 getDay :: MParser DayOfWeek
@@ -93,8 +94,6 @@ getISO = do year <- L.decimal
             day <- L.decimal
             return (fromGregorian year month day) --Will clip the date  
 
-get
-
 getDateMonth :: MParser Day
 getDateMonth = do month <- L.decimal
                   try $emptySingle '-' <|> space1
@@ -109,11 +108,18 @@ getnMonth :: MParser Day
 getnMonth = do month <- string' "next " *> getMonth  
                return (fromGregorian (gregYear unsafeCurrentTime) month (gregDay unsafeCurrentTime))
 
+getyearhelper :: MParser String
+getyearhelper = takeP (Just "four") 4 <|> takeP (Just "two") 2  <* eof
 
-getInterval :: MParser Interval --just a number
-getInterval = do a <- L.decimal 
-                  return a
+--How to "pass along" the state here, returns "expecting integer"
+getYear :: MParser Integer
+getYear = do a <- getyearhelper
+             setInput a       --cheating function, lets you combine parsers
+             b <- L.decimal
+             return (read a :: Integer)
 
+-- getYear :: MParser Integer
+-- getYear = satisfy (isDigit)  
 
 nextWeekday :: DayOfWeek -> Day -> Day -- -> UTCTime -> UTCTime 
 nextWeekday wd now = addDays x now

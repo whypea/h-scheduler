@@ -37,6 +37,7 @@ executable h-scheduler
                       time >= 1.9.3, 
                       megaparsec >= 9.2.0,
                       optparse-applicative >= 0.16.0.0,
-                      tuple >= 0.3.0.2
-\    hs-source-dirs:   app
+                      tuple >= 0.3.0.2,
+                      containers >= 0.6.2.1
+    hs-source-dirs:   app
     default-language: Haskell2010

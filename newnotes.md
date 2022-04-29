@@ -33,7 +33,6 @@ Continue
 
 Error messages in megaparsec
     For each of the different parsers, how would that be done?
-    
 
 
 
@@ -70,8 +69,8 @@ icalendar file printing options
 -- set defaults 
 -- options and printer
 ----datetime format
-----multiple events
-----recurrance
+----multiple events 
+----recurrance X
 ----type of events
 
 
@@ -83,13 +82,19 @@ icalendar file printing options
 --satisfy (\x -> (x <= 12)) month
 --data Event a = Calendar a | Event a| Todo a
 --data Datetime = Dt Integer Integer Integer deriving (Show, Eq, Ord)
+<!-- type TParser = Parsec Void String
+type ShParser = Parsec Void Text
+type MyStack a = StateT Day TParser a -->
+<!-- pBegin :: IO Text
+pBegin = pure "BEGIN:"
 
+pEND :: IO Text
+pEND = pure "END:"
 
--- https://datatracker.ietf.org/doc/html/rfc5545#section-3.3
---Make a parser for this
---Content lines are delimited by a line break, CRLF sequence
---File must include (in contentlines) 
---recurrance rrule
---"contentline   = name *(";" param ) ":" value CRLF" 
-    -- name = iana-token / x-name
-    -- iana-token    = 1*(ALPHA / DIGIT / "-")
+pSemiC :: Text -> Text
+pSemiC = intersperse ';' -->
+
+-- getInterval :: MParser Interval 
+-- getInterval = do a <- takedigitChar
+--                  return (Interval (Just (read a :: Integer)))
+

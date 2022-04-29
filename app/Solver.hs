@@ -15,54 +15,62 @@ import Events
 
 
 --UTCTime: yyyy-mm-ddThh:mm:ss
+--possibility to split up
 data Constraint = Constraint {desc :: Text, time :: Maybe UTCTime , prio :: Maybe Integer }
 
 data Constraints o d p t = C [o] [d] [p] [t]
 
+--
 data Ordered = Ordered {oDesc :: Text, oTime :: UTCTime}
 
+--Certain date to finish by,   
 data Deadline = DL {dDesc :: Text, dTime :: UTCTime}
 
+-- timed tasks with a priority, flexible
 data Priority = Priority {pDesc :: Text, pTime :: UTCTime, pprio :: Integer}
 
+--Free time 
 data Todo = Todo {tDesc :: Text, tTime :: UTCTime, tprio:: Integer}
 
-type CState = State [Constraint] [Constraint]
+type CState = State [Constraint] ()
 
---constrSolve
+--constrSolve 
 
---
-
---orderSolve for a given time, 
---how to use State to collate all the answers?
---  
--- orderSolve ::  [Ordered] -> CState  
--- orderSolve ords = do 
---                     let o = ords
---                     until (lst == []) state fillS
---                     return 
 
 orderSolve :: [Ordered] -> [Constraint]
-orderSolve = fmap fillOC 
+orderSolve = fmap typeOC 
 
-fillOC :: Ordered -> Constraint
-fillOC (Ordered oDesc oTime) = Constraint oDesc (Just oTime) Nothing
+typeOC :: Ordered -> Constraint
+typeOC (Ordered oDesc oTime) = Constraint oDesc (Just oTime) Nothing
 
+ocCheck ::[Ordered] -> CState  
+ocCheck ord = modify (++ orderSolve ord)
+
+--type ->  solve -> check and add to state  -> 
 
 ----dlSolve 
 dlSolve :: [Deadline] -> [Constraint] 
-dlSolve dl = undefined
+dlSolve = fmap typeDC
 
-fillDC :: Deadline -> Constraint
-fillDC (DL dDesc dTime) = Constraint dDesc (Just dTime) Nothing
+typeDC :: Deadline -> Constraint
+typeDC (DL dDesc dTime) = Constraint dDesc (Just dTime) Nothing
 
--- -- ----prioSolve
-prioSolve :: [Priority] -> [Constraint] -> CState
-prioSolve = undefined
--- -- ----unorderedSolve
+dcCheck ::[Deadline] -> CState  
+dcCheck dl = modify (++ dlSolve dl)
 
-fillPC :: Priority -> Constraint
-fillPC (Priority pDesc pTime pprio) = Constraint pDesc (Just pTime) (Just pprio)
 
+--------prioSolve
+prioSolve :: [Priority] -> [Constraint]
+prioSolve = do fmap typePC
+
+typePC :: Priority -> Constraint
+typePC (Priority pDesc pTime pprio) = Constraint pDesc (Just pTime) (Just pprio)
+
+pcCheck :: [Priority] -> CState  
+pcCheck prio = modify (++ prioSolve prio)
+ 
 -- unorderedSolve :: [Todo] -> [Constraint] -> CState
 -- unorderedSolve todos = undefined
+
+--
+-- 

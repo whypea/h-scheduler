@@ -14,7 +14,6 @@ import Options.Applicative (switch)
 
 data Opts = Opts {
      defaults :: String
-    ,oUID     :: String
     ,bfill    :: Bool
     ,verbose  :: Bool
     ,input    :: Bool 
@@ -25,15 +24,11 @@ sample = Opts
       <$> O.strOption
           ( O.long "defaults"
          <> O.metavar "TARGET"
-         <> O.help "Target for the greeting" )
-      <*> O.strOption
-          ( O.long "Identification"
-         <> O.metavar "oUID"
-         <> O.help "Target for the greeting" )
+         <> O.help "File name, UID suffix, " )
       <*> O.switch
           ( O.long "bfill"
          <> O.short 'b'
-         <> O.help "Do/don't ask for " )
+         <> O.help "Do/don't ask for things repeatedly")
       <*> O.switch
           ( O.long "verbose"
          <> O.short 'v'
@@ -54,8 +49,6 @@ cli = do
       ( O.fullDesc
      <> O.progDesc "Produce a ics file"
      <> O.header "h-scheduler" ) 
-
-
 
 scheduler :: IO String
 scheduler = return ""
