@@ -12,66 +12,78 @@ import Data.Time
 import Data.Text (Text)
 import Control.Monad.Trans.State
 import Events
+import Control.Monad.Reader (Reader)
+import Control.Applicative (Const)
+import Data.List (nub, nubBy)
 
 
 --UTCTime: yyyy-mm-ddThh:mm:ss
 --possibility to split up
 data Constraint = Constraint {desc :: Text, time :: Maybe UTCTime , prio :: Maybe Integer }
-
+                 |Ordered {oDesc :: Text, oTime :: UTCTime}
+                 |DL {dDesc :: Text, dTime :: UTCTime}
+                 |Priority {pDesc :: Text, pTime :: UTCTime, pprio :: Integer}
+                 |Todo {tDesc :: Text, tTime :: UTCTime, tprio:: Integer}
 --Set date, eg. meetings
-data Ordered = Ordered {oDesc :: Text, oTime :: UTCTime}
+-- data Ordered = Ordered {oDesc :: Text, oTime :: UTCTime}
 
---Certain date to finish by,   
-data Deadline = DL {dDesc :: Text, dTime :: UTCTime}
+-- --Certain date to finish by,   
+-- data Deadline = DL {dDesc :: Text, dTime :: UTCTime}
 
--- timed tasks with a priority, flexible
-data Priority = Priority {pDesc :: Text, pTime :: UTCTime, pprio :: Integer}
+-- -- timed tasks with a priority, flexible
+-- data Priority = Priority {pDesc :: Text, pTime :: UTCTime, pprio :: Integer}
 
---Free time 
-data Todo = Todo {tDesc :: Text, tTime :: UTCTime, tprio:: Integer}
+-- --Free time 
+-- data Todo = Todo {tDesc :: Text, tTime :: UTCTime, tprio:: Integer}
 
-type CState = State [Constraint] ()
---type ->  solve -> check and add to state  -> 
+type CState = State  [Constraint] Constraint
 
---constrSolve 
-typeOC :: Ordered -> Constraint
+type CReader = Reader [Constraint]
+--type in constraint ->  solve -> check and add to state -> Either for errors?  
+
+--constrSolve :: [Constraint] -> 
+typeOC :: Constraint -> Constraint
 typeOC (Ordered oDesc oTime) = Constraint oDesc (Just oTime) Nothing
 
-orderSolve :: [Ordered] -> [Constraint]
-orderSolve = fmap typeOC 
+orderSolve :: [Constraint] -> [Constraint]
+orderSolve = fmap typeOC
 
-ocCheck ::[Ordered] -> CState -> CState 
-ocCheck ord state = if (oChecker ord ord) then (modify (++ orderSolve ord)) else []
+ocCheck ::[Constraint] -> CState -> CState
+ocCheck ord state = if oChecker ord then modify (++ orderSolve ord) else modify (++ [])
 
-oChecker :: [Ordered] -> Bool
-oChecker os = any $ filter (\(o,c) -> oTime == oTime ) $zip(os,os)
+
+oChecker :: [Constraint] -> Bool
+oChecker s = length s == length (nubBy oTest s)
+    where oTest a b = oTime a == oTime b
  
+
+--oChecker os = not (any (\(o1,o2) -> oTime o1 == oTime o2 ) (zip os os))
+
 ----dlSolve 
-typeDC :: Deadline -> Constraint
+typeDC :: Constraint -> Constraint
 typeDC (DL dDesc dTime) = Constraint dDesc (Just dTime) Nothing
 
-dlSolve :: [Deadline] -> [Constraint] 
+dlSolve :: [Constraint] -> [Constraint]
 dlSolve = fmap typeDC
 
-
-dcCheck ::[Deadline] -> CState  
+dcCheck ::[Constraint] -> CState
 dcCheck dl = modify (++ dlSolve dl)
 
 
 --------prioSolve
-prioSolve :: [Priority] -> [Constraint]
+prioSolve :: [Constraint] -> [Constraint]
 prioSolve = do fmap typePC
 
-typePC :: Priority -> Constraint
+typePC :: Constraint -> Constraint
 typePC (Priority pDesc pTime pprio) = Constraint pDesc (Just pTime) (Just pprio)
 
-pcCheck :: [Priority] -> CState  
+pcCheck :: [Constraint] -> CState
 pcCheck prio = modify (++ prioSolve prio)
- 
+
 -- unorderedSolve :: [Todo] -> [Constraint] -> CState
 -- unorderedSolve todos = undefined
 
 --Not quite tests
 curryCalendar :: ((Integer, Int), Int) -> Day
-curryCalendar = uncurry.uncurry $fromGregorian 
+curryCalendar = uncurry.uncurry $fromGregorian
 

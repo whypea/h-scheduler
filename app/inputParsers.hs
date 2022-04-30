@@ -38,16 +38,24 @@ unsafeCurrentTime :: UTCTime
 unsafeCurrentTime = unsafePerformIO getCurrentTime 
 
 gregYear :: UTCTime -> Integer 
-gregYear x = (toGregorian $utctDay x).^1
+gregYear x = (toGregorian $utctDay x)^._1
 
 gregMonth :: UTCTime -> Int 
-gregMonth x = (toGregorian $utctDay x).^2
+gregMonth x = (toGregorian $utctDay x)^._2
 
 gregDay :: UTCTime -> Int 
-gregDay x = (toGregorian $utctDay x).^3
+gregDay x = (toGregorian $utctDay x)^._3
 
 makeUTCTime :: Day -> DiffTime -> UTCTime
-makeUTCTime day time = UTCTime (day) (time)  
+makeUTCTime day time = UTCTime (day) (time)
+
+getIntegerType :: Num a => MParser (Maybe a)
+getIntegerType = do a <- L.decimal
+                    return (Just a)
+
+-- getStringType :: String -> MParser (Maybe a)
+-- getStringType str = do a <- string' str
+--                        return (Just a)
 
 ---- !Parsers
 getDay :: MParser DayOfWeek
@@ -89,7 +97,7 @@ getrFreq = do choice
  , YEARLY  <$ string' "every year"]       --  <|> string "every year")]
 
 getISO :: MParser Day
-getISO = do year <- L.decimal
+getISO = do year <- getYear
             try $emptySingle '-' <|> space1
             month <- L.decimal
             try $emptySingle '-' <|> space1
@@ -110,6 +118,9 @@ getnMonth :: MParser Day
 getnMonth = do month <- string' "next " *> getMonth  
                return (fromGregorian (gregYear unsafeCurrentTime) month (gregDay unsafeCurrentTime))
 
+-- getnWeek :: MParser Day
+-- getnWeek = 
+
 getYearHelper :: MParser String
 getYearHelper = takeP (Just "four") 4 <|> takeP (Just "two") 2  <* eof
 
@@ -119,9 +130,9 @@ getYear = do a <- getYearHelper
              b <- L.decimal
              return b
 
-getReoccur :: MParser Reoccur
-getReoccur = do r <- L.decimal
-                return r
+getReoccur :: MParser Reoccur 
+getReoccur = do a <- getIntegerType 
+                return (Reoccur a)
 
 --getICSFile :: Handle
 

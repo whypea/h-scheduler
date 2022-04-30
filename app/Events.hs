@@ -18,7 +18,7 @@ import Data.Text ( Text, pack, intersperse )
 import GHC.IO (unsafePerformIO)
 import Data.Data
 import Control.Monad.Trans.State (StateT)
-
+ 
 
 
 newtype Datetime = DT UTCTime
@@ -26,6 +26,12 @@ newtype Datetime = DT UTCTime
 instance Show Datetime where
     show (DT a) = filter (/= '-' ) (iso8601Show a) ++ ";"  
 
+
+data Pevent = Pevent 
+    {event :: Vevent
+    ,prio  :: Int 
+    ,pslot  :: (UTCTime,UTCTime) --Start/end time
+    }
 
 
 --Types for iCal
@@ -37,8 +43,8 @@ data Vevent = Vevent
     ,eDTStart :: UTCTime --P
     ,eDTEnd   :: UTCTime --P
     ,eDescription :: String --P? ()
-    ,ePrio :: MT Text
-    ,eSeq :: MT Text
+    ,ePrio :: MT Text       --P
+    ,eSeq :: MT Text        --P
     ,eTimeTrans :: Transp
     ,eRecur :: MT Text
     ,eAlarm :: MT Text
@@ -82,10 +88,13 @@ data VrRule = VrRule
     {
     rFreq      :: Vrfreq --P (Freq)
     ,rUntil    :: Until --P (Day)
-    ,rReoccur  :: Reoccur
+    ,rReoccur  :: Reoccur 
     ,rInterval :: Interval
     ,rbyMonth  :: ByMonth --P
     ,rbyDay    :: ByDay   --P
+    ,rbyMonthDay :: Int
+    ,rByYearDay :: Int 
+    ,rByWeekNo :: Int
     }
 
 newtype Until = Until (Maybe Day)
@@ -112,21 +121,20 @@ instance Show ByMonth where
     show (ByMonth (Just a)) = "BYMONTH=" ++ show a ++ ";"
     show (ByMonth Nothing) = ""
 
-newtype ByDay = ByDay (Maybe Integer)
+newtype ByDay = ByDay (Maybe DayOfWeek) 
 
 instance Show ByDay where
     show (ByDay (Just a)) = "BYDAY=" ++ show a ++ ";"
     show (ByDay Nothing) = ""
 
-instance Show VrRule where
-    show (VrRule freq until (Reoccur Nothing) interval mon day) =
+instance Show VrRule  where
+    show (VrRule freq until (Reoccur Nothing) interval mon day _ _ _) =       --
      show freq ++ show until ++ show interval ++ show mon ++ show day
-    show (VrRule freq (Until Nothing) reoccur interval mon day) =
+    show (VrRule freq (Until Nothing) reoccur interval mon day _ _ _) =
      show freq ++ show reoccur ++ show interval ++ show mon ++ show day
-    show (VrRule freq (Until Nothing) (Reoccur Nothing) interval mon day) =
+    show (VrRule freq (Until Nothing) (Reoccur Nothing) interval mon day _ _ _) =
      show freq  ++ show interval ++ show mon ++ show day
     show VrRule{..} = ""
--- The UNTIL or COUNT rule parts are OPTIONAL, but they MUST NOT occur in the same 'recur'.
 --replace with something like intersperse 
 
 
@@ -136,7 +144,7 @@ data Vrfreq = HOURLY | DAILY | WEEKLY | MONTHLY | YEARLY
 
 data Vcalendar = Vcalendar
     {
-    cProdId       :: Text   --needs a generator 
+    cProdId       :: String   --needs a generator 
     , cVersion    :: Version
     , cScale      :: Gregorian
     , cTimeZones  :: TZ 
@@ -162,9 +170,13 @@ instance Show TZ where
 
 instance Show Vcalendar where
     show (Vcalendar cProdId version scale tz events) =
-     "BEGIN:\n " ++ "VERSION="
-     ++ show version ++ "\n" ++ "SCALE=" ++ show scale ++ "TIMEZONE="++ show tz ++ "EVENTS="++ show events
+     "BEGIN:VCALENDAR\n" ++ "VERSION="
+     ++ show version ++ "\n" ++ "SCALE=" ++ show scale ++ "\n" 
+     ++ "TIMEZONE="++ show tz ++ "\n" ++ "EVENTS="++ printList events
 
+printList :: Show a => [a] -> String
+printList [] = ""
+printlist (x:xs) = show x ++ printList xs
 
 --printers
 

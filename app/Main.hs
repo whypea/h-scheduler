@@ -6,5 +6,5 @@ import Solver
 
 
 main :: IO ()
-main = do putstrLn "h-scheduler"
+main = do putStrLn "h-scheduler"
           cli
