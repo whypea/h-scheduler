@@ -19,9 +19,11 @@ import Data.Void
 import Data.Time
 import Data.Time.Calendar.MonthDay
 import Data.Tuple.Select
-import Data.Text ( Text, pack, intersperse )
-import Control.Monad.Trans.State (StateT)
-import Control.Monad (void)
+import Data.Text
+
+import Control.Lens
+import Control.Monad.Trans.State 
+import Control.Monad
 
 type MParser = Parsec Void String 
 
@@ -36,13 +38,13 @@ unsafeCurrentTime :: UTCTime
 unsafeCurrentTime = unsafePerformIO getCurrentTime 
 
 gregYear :: UTCTime -> Integer 
-gregYear x = sel1 (toGregorian $utctDay x)
+gregYear x = (toGregorian $utctDay x).^1
 
 gregMonth :: UTCTime -> Int 
-gregMonth x = sel2 (toGregorian $utctDay x)
+gregMonth x = (toGregorian $utctDay x).^2
 
 gregDay :: UTCTime -> Int 
-gregDay x = sel3 (toGregorian $utctDay x)
+gregDay x = (toGregorian $utctDay x).^3
 
 makeUTCTime :: Day -> DiffTime -> UTCTime
 makeUTCTime day time = UTCTime (day) (time)  
@@ -108,18 +110,20 @@ getnMonth :: MParser Day
 getnMonth = do month <- string' "next " *> getMonth  
                return (fromGregorian (gregYear unsafeCurrentTime) month (gregDay unsafeCurrentTime))
 
-getyearhelper :: MParser String
-getyearhelper = takeP (Just "four") 4 <|> takeP (Just "two") 2  <* eof
+getYearHelper :: MParser String
+getYearHelper = takeP (Just "four") 4 <|> takeP (Just "two") 2  <* eof
 
---How to "pass along" the state here, returns "expecting integer"
 getYear :: MParser Integer
-getYear = do a <- getyearhelper
+getYear = do a <- getYearHelper
              setInput a       --cheating function, lets you combine parsers
              b <- L.decimal
-             return (read a :: Integer)
+             return b
 
--- getYear :: MParser Integer
--- getYear = satisfy (isDigit)  
+getReoccur :: MParser Reoccur
+getReoccur = do r <- L.decimal
+                return r
+
+--getICSFile :: Handle
 
 nextWeekday :: DayOfWeek -> Day -> Day -- -> UTCTime -> UTCTime 
 nextWeekday wd now = addDays x now

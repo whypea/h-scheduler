@@ -16,34 +16,45 @@ import Data.Time
 import Data.Time.Format.ISO8601
 import Data.Text ( Text, pack, intersperse )
 import GHC.IO (unsafePerformIO)
-import Class (Class)
 import Data.Data
 import Control.Monad.Trans.State (StateT)
-import GHC.Conc (pseq)
+
+
 
 newtype Datetime = DT UTCTime
 
 instance Show Datetime where
-    show (DT a) = filter (/= '-') (iso8601Show a) ++ ";"  
+    show (DT a) = filter (/= '-' ) (iso8601Show a) ++ ";"  
 
 
 
 --Types for iCal
 data Vevent = Vevent
     {
-    eDTstamp :: Datetime
+    eDTstamp :: Datetime --P
     ,eUID     :: UID
     ,eClass   :: Text
-    ,eDTStart :: UTCTime
-    ,eDTEnd   :: UTCTime 
-    ,eDescription :: String
+    ,eDTStart :: UTCTime --P
+    ,eDTEnd   :: UTCTime --P
+    ,eDescription :: String --P? ()
     ,ePrio :: MT Text
     ,eSeq :: MT Text
-    ,eTimeTrans :: MT Text
+    ,eTimeTrans :: Transp
     ,eRecur :: MT Text
     ,eAlarm :: MT Text
     ,eRRule :: VrRule
     }
+
+data Transp = TRANSPARENT | OPAQUE deriving (Show, Enum)
+
+data EClass token = PUBLIC | PRIVATE | CONFIDENTIAL | IANA token | XNAME token 
+
+instance Show a => Show (EClass a) where 
+    show PUBLIC = "PUBLIC"
+    show PRIVATE = "PRIVATE"
+    show CONFIDENTIAL = "CONFIDENTIAL"
+    show (IANA a) = show a
+    show (XNAME a) = show a 
 
 newtype UID = UID String deriving (Show)
 
@@ -52,7 +63,7 @@ newtype UID = UID String deriving (Show)
 -- ["DATETIME","UID:", "CLASS:", "DTSTART:", "DESCRIPTION", "PRIORITY:", "SEQUENCE:", "TRANSP:", "RECUR:", "ALARM:", "RRULE:"]--TODO
 
 
-
+--this is disgusting
 instance Show Vevent where
      show (Vevent stamp uid eclass start end desc prio seq timet recur alarm rrule) =
          "BEGIN=" ++ "VEVENT=" ++ "DATETIME= "++ show stamp ++ ";" ++  "UID=" ++ show uid ++ ";"  ++ show uid
@@ -69,12 +80,12 @@ instance Show a => Show (MT a) where
 
 data VrRule = VrRule
     {
-    rFreq      :: Vrfreq
-    ,rUntil    :: Until
+    rFreq      :: Vrfreq --P (Freq)
+    ,rUntil    :: Until --P (Day)
     ,rReoccur  :: Reoccur
     ,rInterval :: Interval
-    ,rbyMonth  :: ByMonth
-    ,rbyDay    :: ByDay
+    ,rbyMonth  :: ByMonth --P
+    ,rbyDay    :: ByDay   --P
     }
 
 newtype Until = Until (Maybe Day)
@@ -125,22 +136,42 @@ data Vrfreq = HOURLY | DAILY | WEEKLY | MONTHLY | YEARLY
 
 data Vcalendar = Vcalendar
     {
-    cProdId       :: Text
-    , cVersion    :: String
-    , cScale      :: String
-    , cTimeZones  :: String
+    cProdId       :: Text   --needs a generator 
+    , cVersion    :: Version
+    , cScale      :: Gregorian
+    , cTimeZones  :: TZ 
     , cEvents     :: [Vevent]
     }
+
+data Gregorian = GREGORIAN deriving (Show, Read, Enum)
+
+newtype Version = Version String
+
+instance Show Version where
+    show (Version a) = "2.0" --DWAI
+
+newtype TZ = TZ TimeZone --offset in minutes 
+
+--The "VTIMEZONE" calendar component MUST include the "TZID" 
+--property and at least one definition of a "STANDARD" or "DAYLIGHT"
+--sub-component.  The "STANDARD" or "DAYLIGHT" sub-component MUST
+--include the "DTSTART", "TZOFFSETFROM", and "TZOFFSETTO"
+--properties.
+instance Show TZ where
+    show (TZ a) = show (timeZoneMinutes a) 
 
 instance Show Vcalendar where
     show (Vcalendar cProdId version scale tz events) =
      "BEGIN:\n " ++ "VERSION="
      ++ show version ++ "\n" ++ "SCALE=" ++ show scale ++ "TIMEZONE="++ show tz ++ "EVENTS="++ show events
 
+
 --printers
 
+
+
 makeUDI ::  UTCTime
-makeUDI = unsafePerformIO getCurrentTime
+makeUDI = unsafePerformIO getCurrentTime --Documentation doesn't give any side-effects
 
 
 

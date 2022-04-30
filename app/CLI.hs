@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 module CLI where
 
 import Control.Monad.Trans.State
@@ -9,11 +8,11 @@ import  Text.Megaparsec
 import  Text.Megaparsec.Char
 import Data.Time
 import qualified Options.Applicative as O
-import Options.Applicative (switch)
+
  
 
 data Opts = Opts {
-     defaults :: String
+     filename :: String
     ,bfill    :: Bool
     ,verbose  :: Bool
     ,input    :: Bool 
@@ -24,11 +23,11 @@ sample = Opts
       <$> O.strOption
           ( O.long "defaults"
          <> O.metavar "TARGET"
-         <> O.help "File name, UID suffix, " )
+         <> O.help "File name, UID suffix ++ " )
       <*> O.switch
           ( O.long "bfill"
          <> O.short 'b'
-         <> O.help "Do/don't ask for things repeatedly")
+         <> O.help "Do/don't ask for every single field")
       <*> O.switch
           ( O.long "verbose"
          <> O.short 'v'
@@ -36,7 +35,7 @@ sample = Opts
       <*> O.switch
           ( O.long "input"
          <> O.short 'i'
-         <> O.help "Edit a file or input one")
+         <> O.help "Make or edit file")
 
 
 
