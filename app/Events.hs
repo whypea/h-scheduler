@@ -2,6 +2,10 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE FlexibleContexts   #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
+
 
 module Events where
 import Data.Void
@@ -14,40 +18,44 @@ import qualified Text.Megaparsec.Char.Lexer as L
 
 import Data.Time
 import Data.Time.Format.ISO8601
-import Data.Text ( Text, pack, intersperse )
+import qualified Data.Text as T ( Text, pack, intersperse )
 import GHC.IO (unsafePerformIO)
 import Data.Data
 import Control.Monad.Trans.State (StateT)
+import Data.Time.Calendar.Julian (DayOfYear)
+import Data.Time.Calendar.OrdinalDate (WeekOfYear)
  
-
-
 newtype Datetime = DT UTCTime
 
 instance Show Datetime where
-    show (DT a) = filter (/= '-' ) (iso8601Show a) ++ ";"  
+    show (DT a) = filter (dtCond) (iso8601Show a) ++ ";"  
 
+dtCond :: Char -> Bool
+dtCond = \x -> x /= '-' && x /= ':'
 
+--TODO: Maybe possibility for self-defined events?
+data EventCat = Ord | Dead | Prio | Todo 
+
+--Priority and DTStart/DTEnd
 data Pevent = Pevent 
     {event :: Vevent
     ,prio  :: Int 
-    ,pslot  :: (UTCTime,UTCTime) --Start/end time
+    ,pSET  :: (UTCTime,UTCTime) --Start/end time
     }
-
 
 --Types for iCal
 data Vevent = Vevent
     {
     eDTstamp :: Datetime --P
-    ,eUID     :: UID
-    ,eClass   :: Text
+    ,eUID     :: UID    --P (takes Datetime)
+    ,eClass   :: T.Text
     ,eDTStart :: UTCTime --P
     ,eDTEnd   :: UTCTime --P
     ,eDescription :: String --P? ()
-    ,ePrio :: MT Text       --P
-    ,eSeq :: MT Text        --P
-    ,eTimeTrans :: Transp
-    ,eRecur :: MT Text
-    ,eAlarm :: MT Text
+    ,ePrio :: MT T.Text       --P
+    ,eSeq :: MT T.Text        --P
+    ,eTimeTrans :: Transp     --TODO 
+    ,eAlarm :: MT T.Text      --TODO 
     ,eRRule :: VrRule
     }
 
@@ -69,14 +77,14 @@ newtype UID = UID String deriving (Show)
 -- ["DATETIME","UID:", "CLASS:", "DTSTART:", "DESCRIPTION", "PRIORITY:", "SEQUENCE:", "TRANSP:", "RECUR:", "ALARM:", "RRULE:"]--TODO
 
 
---this is disgusting
+--TODO this is disgusting
 instance Show Vevent where
-     show (Vevent stamp uid eclass start end desc prio seq timet recur alarm rrule) =
+     show (Vevent stamp uid eclass start end desc prio seq timet  alarm rrule) =
          "BEGIN=" ++ "VEVENT=" ++ "DATETIME= "++ show stamp ++ ";" ++  "UID=" ++ show uid ++ ";"  ++ show uid
          ++ "CLASS=" ++ show eclass ++ ";" ++ "DTSTART=" ++ show start ++ ";"++ "DTEND="
          ++ show end ++ ";"  ++ "DESCRIPTION=" ++ show desc ++ ";" ++ "PRIORITY=" ++
          show prio ++ ";" ++ "SEQUENCE=" ++ show seq ++ ";"++ "TRANSP=" ++ show timet++ ";" ++
-         "RECUR=" ++ show recur ++ ";" ++ "ALARM=" ++ show alarm ++ ";" ++ "RRULE=" ++ show rrule
+         "RECUR=" ++ show rrule ++ ";" ++ "ALARM=" ++ show alarm ++ ";"
 
 newtype MT a= MT {a :: Maybe a}
 
@@ -92,10 +100,14 @@ data VrRule = VrRule
     ,rInterval :: Interval
     ,rbyMonth  :: ByMonth --P
     ,rbyDay    :: ByDay   --P
-    ,rbyMonthDay :: Int
-    ,rByYearDay :: Int 
-    ,rByWeekNo :: Int
+    ,rbyMonthDay :: MonthDay   --TODO make types for these
+    ,rByYearDay :: YearDay 
+    ,rByWeekNo :: WeekNo
     }
+
+--TODO Generalise the show instances
+-- data MShow (a :: Maybe b) where
+--     ShowMaybe :: Show b => MShow a
 
 newtype Until = Until (Maybe Day)
 
@@ -127,6 +139,13 @@ instance Show ByDay where
     show (ByDay (Just a)) = "BYDAY=" ++ show a ++ ";"
     show (ByDay Nothing) = ""
 
+newtype MonthDay = MonthDay (Maybe DayOfMonth)
+
+newtype YearDay  = YearDay (Maybe DayOfYear)
+
+newtype WeekNo = WeekNo (Maybe WeekOfYear)
+
+--TODO: replace with something like intersperse 
 instance Show VrRule  where
     show (VrRule freq until (Reoccur Nothing) interval mon day _ _ _) =       --
      show freq ++ show until ++ show interval ++ show mon ++ show day
@@ -135,7 +154,7 @@ instance Show VrRule  where
     show (VrRule freq (Until Nothing) (Reoccur Nothing) interval mon day _ _ _) =
      show freq  ++ show interval ++ show mon ++ show day
     show VrRule{..} = ""
---replace with something like intersperse 
+
 
 
 --Cutting out some of the choices
@@ -144,7 +163,7 @@ data Vrfreq = HOURLY | DAILY | WEEKLY | MONTHLY | YEARLY
 
 data Vcalendar = Vcalendar
     {
-    cProdId       :: String   --needs a generator 
+    cProdId       :: String   --TODO needs a generator 
     , cVersion    :: Version
     , cScale      :: Gregorian
     , cTimeZones  :: TZ 
@@ -156,7 +175,7 @@ data Gregorian = GREGORIAN deriving (Show, Read, Enum)
 newtype Version = Version String
 
 instance Show Version where
-    show (Version a) = "2.0" --DWAI
+    show (Version a) = "2.0" --Change if the standards update 
 
 newtype TZ = TZ TimeZone --offset in minutes 
 
@@ -180,12 +199,11 @@ printlist (x:xs) = show x ++ printList xs
 
 --printers
 
+--TODO Change this to an option passed down from CLI
+uidID :: [Char]
+uidID = "@h-scheduler"
 
-
-makeUDI ::  UTCTime
-makeUDI = unsafePerformIO getCurrentTime --Documentation doesn't give any side-effects
-
-
-
+makeUID :: [Char]
+makeUID = foldr1 (++) [filter dtCond (show $ DT $ unsafePerformIO getCurrentTime), uidID] --Documentation doesn't give any side-effects
 
 

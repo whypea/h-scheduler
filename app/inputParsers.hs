@@ -38,13 +38,13 @@ unsafeCurrentTime :: UTCTime
 unsafeCurrentTime = unsafePerformIO getCurrentTime 
 
 gregYear :: UTCTime -> Integer 
-gregYear x = (toGregorian $utctDay x)^._1
+gregYear x = (toGregorian $ utctDay x)^._1
 
 gregMonth :: UTCTime -> Int 
-gregMonth x = (toGregorian $utctDay x)^._2
+gregMonth x = (toGregorian $ utctDay x)^._2
 
 gregDay :: UTCTime -> Int 
-gregDay x = (toGregorian $utctDay x)^._3
+gregDay x = (toGregorian $ utctDay x)^._3
 
 makeUTCTime :: Day -> DiffTime -> UTCTime
 makeUTCTime day time = UTCTime (day) (time)
@@ -53,11 +53,21 @@ getIntegerType :: Num a => MParser (Maybe a)
 getIntegerType = do a <- L.decimal
                     return (Just a)
 
+nextWeekday :: DayOfWeek -> Day -> Day -- -> UTCTime -> UTCTime 
+nextWeekday wd now = addDays x now
+ where x = if diff < 0 then (-toInteger diff) else 7 -(toInteger diff)
+       diff = (fromEnum $dayOfWeek now) - (fromEnum wd)
+
+--TODO Fix this
 -- getStringType :: String -> MParser (Maybe a)
 -- getStringType str = do a <- string' str
 --                        return (Just a)
 
 ---- !Parsers
+--TODO: Put together the other parsers
+getEvent :: MParser Pevent 
+getEvent = undefined
+
 getDay :: MParser DayOfWeek
 getDay = do choice 
  [ Monday    <$ string' "mon" <* many alphaNumChar
@@ -83,30 +93,33 @@ getMonth = do choice
  , 11   <$ string' "Nov" <* many alphaNumChar 
  , 12   <$ string' "Dec" <* many alphaNumChar ]
 
-getrFreq :: MParser Vrfreq
+getrFreq :: MParser Vrfreq --List of tuples
 getrFreq = do choice 
  [ HOURLY  <$ string' "hourly"
  , HOURLY  <$ string' "every hour" 
- , DAILY   <$ string' "daily"       -- <|> string "every day"), 
- , DAILY   <$ string' "every day"       -- <|> string "every day"), 
- , WEEKLY  <$ string' "weekly"      -- <|> string "every week"), 
- , WEEKLY  <$ string' "every week"      -- <|> string "every week"), 
- , MONTHLY <$ string' "monthly"     -- <|> string "every month"), 
- , MONTHLY <$ string' "every month"     -- <|> string "every month"), 
- , YEARLY  <$ string' "yearly"       --  <|> string "every year")]
- , YEARLY  <$ string' "every year"]       --  <|> string "every year")]
+ , DAILY   <$ string' "daily"        
+ , DAILY   <$ string' "every day"        
+ , WEEKLY  <$ string' "weekly"       
+ , WEEKLY  <$ string' "every week"       
+ , MONTHLY <$ string' "monthly"      
+ , MONTHLY <$ string' "every month"      
+ , YEARLY  <$ string' "yearly"       
+ , YEARLY  <$ string' "every year"]       
+
+rfreqmap :: String -> MParser Vrfreq
+rfreqmap s = [fmap [HOURLY, DAILY, WEEKLY, MONTHLY, YEARLY]]   
 
 getISO :: MParser Day
 getISO = do year <- getYear
-            try $emptySingle '-' <|> space1
+            try $ emptySingle '-' <|> space1
             month <- L.decimal
-            try $emptySingle '-' <|> space1
+            try $ emptySingle '-' <|> space1
             day <- L.decimal
             return (fromGregorian year month day) --Will clip the date  
 
 getDateMonth :: MParser Day
 getDateMonth = do month <- L.decimal
-                  try $emptySingle '-' <|> space1
+                  try $ emptySingle '-' <|> space1
                   day <- L.decimal
                   return (fromGregorian (gregYear unsafeCurrentTime) month day) 
 
@@ -124,7 +137,7 @@ getnMonth = do month <- string' "next " *> getMonth
 getYearHelper :: MParser String
 getYearHelper = takeP (Just "four") 4 <|> takeP (Just "two") 2  <* eof
 
-getYear :: MParser Integer
+getYear :: MParser Integer --(>=>) might be useful
 getYear = do a <- getYearHelper
              setInput a       --cheating function, lets you combine parsers
              b <- L.decimal
@@ -134,12 +147,10 @@ getReoccur :: MParser Reoccur
 getReoccur = do a <- getIntegerType 
                 return (Reoccur a)
 
---getICSFile :: Handle
+--getICSFile :: Handle -> MParser  
 
-nextWeekday :: DayOfWeek -> Day -> Day -- -> UTCTime -> UTCTime 
-nextWeekday wd now = addDays x now
- where x = if diff < 0 then (-toInteger diff) else 7 -(toInteger diff)
-       diff = (fromEnum $dayOfWeek now) - (fromEnum wd)
+
+
 
 
 -- getMonth :: MParser 

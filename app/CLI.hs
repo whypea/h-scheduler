@@ -13,6 +13,7 @@ import qualified Options.Applicative as O
 
 data Opts = Opts {
      filename :: String
+    ,uidsuffix :: String
     ,bfill    :: Bool
     ,verbose  :: Bool
     ,input    :: Bool 
@@ -21,9 +22,15 @@ data Opts = Opts {
 sample :: O.Parser Opts
 sample = Opts
       <$> O.strOption
-          ( O.long "defaults"
-         <> O.metavar "TARGET"
-         <> O.help "File name, UID suffix ++ " )
+          ( O.long "filename"
+         <> O.metavar "FILE"
+         <> O.value "MyCalendar"
+         <> O.help "Filename for the calendar file" )
+      <*> O.strOption
+          ( O.long "Unique Identifier"
+         <> O.metavar "UID"
+         <> O.value "@h-scheduler"
+         <> O.help "Identifier for the instance" ) 
       <*> O.switch
           ( O.long "bfill"
          <> O.short 'b'
@@ -35,10 +42,11 @@ sample = Opts
       <*> O.switch
           ( O.long "input"
          <> O.short 'i'
-         <> O.help "Make or edit file")
+         <> O.help "Make (True) or edit (False) file")
 
-
-
+--TODO make it accept values
+--TODO make it quit
+--TODO sleep and wakeup times? (should be implied honestly) 
 cli :: IO () 
 cli = do 
     options <- O.execParser opts

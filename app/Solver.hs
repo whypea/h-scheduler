@@ -15,75 +15,66 @@ import Events
 import Control.Monad.Reader (Reader)
 import Control.Applicative (Const)
 import Data.List (nub, nubBy)
-
-
+import Data.IntMap
+import Data.Char (ord)
+import Control.Lens
 --UTCTime: yyyy-mm-ddThh:mm:ss
 --possibility to split up
-data Constraint = Constraint {desc :: Text, time :: Maybe UTCTime , prio :: Maybe Integer }
-                 |Ordered {oDesc :: Text, oTime :: UTCTime}
-                 |DL {dDesc :: Text, dTime :: UTCTime}
-                 |Priority {pDesc :: Text, pTime :: UTCTime, pprio :: Integer}
-                 |Todo {tDesc :: Text, tTime :: UTCTime, tprio:: Integer}
---Set date, eg. meetings
--- data Ordered = Ordered {oDesc :: Text, oTime :: UTCTime}
+newtype Constraint = Constraint {cEvent :: Pevent}
+newtype Ordered = Ordered {oEvent :: Pevent}  --Set date, eg. meetings   
+newtype Deadline = DL {dEvent :: Pevent}       --Certain date to finish by,
+newtype Priority = Priority {pEvent :: Pevent} -- timed tasks with a priority, flexible
+newtype Todo  = Todo {tEvent :: Pevent}     --Any time, priority has lower pecedence than above
+--               |Free 
 
--- --Certain date to finish by,   
--- data Deadline = DL {dDesc :: Text, dTime :: UTCTime}
+type CState = State (Either [Constraint] [Constraint]) 
 
--- -- timed tasks with a priority, flexible
--- data Priority = Priority {pDesc :: Text, pTime :: UTCTime, pprio :: Integer}
+--
+timeCompare :: Pevent -> Pevent -> Bool
+timeCompare p1 p2 = diffUTCTime ((pSET $ p1)^._1)  ((pSET $ p2)^._2) > 0|| diffUTCTime ((pSET $ p1)^._1) ((pSET $ p2)^._2) > 0  
 
--- --Free time 
--- data Todo = Todo {tDesc :: Text, tTime :: UTCTime, tprio:: Integer}
+-- ->  solve -> check and add to state -> Either for errors?  
 
-type CState = State  [Constraint] Constraint
+--TODO: implement a binary search with timeCompare
 
-type CReader = Reader [Constraint]
---type in constraint ->  solve -> check and add to state -> Either for errors?  
+--constrSolve :: [Ordered] -> [Constraint]
+-- typeOC :: Constraint -> Constraint
+-- typeOC (Ordered oevt) = Constraint oevt
 
---constrSolve :: [Constraint] -> 
-typeOC :: Constraint -> Constraint
-typeOC (Ordered oDesc oTime) = Constraint oDesc (Just oTime) Nothing
+-- orderSolve :: [Constraint] -> [Constraint]
+-- orderSolve = fmap typeOC
 
-orderSolve :: [Constraint] -> [Constraint]
-orderSolve = fmap typeOC
+-- ocCheck ::[Constraint] -> CState ()  -> CState ()
+-- ocCheck ord state = if timeCompare (pslot . oEvent) then modify (Right :ord) else modify (Left :ord)
 
-ocCheck ::[Constraint] -> CState -> CState
-ocCheck ord state = if oChecker ord then modify (++ orderSolve ord) else modify (++ [])
+-- oCompare :: [Ordered] -> Bool
+-- oCompare ls = length $ nubBy (timeCompare (pSET . oEvent)) ls == length ls
 
 
-oChecker :: [Constraint] -> Bool
-oChecker s = length s == length (nubBy oTest s)
-    where oTest a b = oTime a == oTime b
- 
+-- ----dlSolve 
+-- typeDC :: Constraint -> Constraint
+-- typeDC (DL devt) = Constraint devt
 
---oChecker os = not (any (\(o1,o2) -> oTime o1 == oTime o2 ) (zip os os))
+-- dlSolve :: [Constraint] -> [Constraint]
+-- dlSolve = fmap typeDC
 
-----dlSolve 
-typeDC :: Constraint -> Constraint
-typeDC (DL dDesc dTime) = Constraint dDesc (Just dTime) Nothing
+-- dcCheck ::[Constraint] -> CState
+-- dcCheck dl = modify (++ dlSolve dl)
 
-dlSolve :: [Constraint] -> [Constraint]
-dlSolve = fmap typeDC
+-- --------prioSolve
+-- typePC :: Constraint -> Constraint
+-- typePC prios = undefined --Constraint pDesc (Just pTime) (Just pprio)
 
-dcCheck ::[Constraint] -> CState
-dcCheck dl = modify (++ dlSolve dl)
+-- prioSolve :: [Constraint] -> [Constraint]
+-- prioSolve = do fmap typePC
 
+-- pcCheck :: [Constraint] -> CState
+-- pcCheck prio = undefined--modify (++ prioSolve prio)
 
---------prioSolve
-prioSolve :: [Constraint] -> [Constraint]
-prioSolve = do fmap typePC
+-- -- unorderedSolve :: [Todo] -> [Constraint] -> CState
+-- -- unorderedSolve todos = undefined
 
-typePC :: Constraint -> Constraint
-typePC (Priority pDesc pTime pprio) = Constraint pDesc (Just pTime) (Just pprio)
-
-pcCheck :: [Constraint] -> CState
-pcCheck prio = modify (++ prioSolve prio)
-
--- unorderedSolve :: [Todo] -> [Constraint] -> CState
--- unorderedSolve todos = undefined
-
---Not quite tests
-curryCalendar :: ((Integer, Int), Int) -> Day
-curryCalendar = uncurry.uncurry $fromGregorian
+-- --Not quite tests
+-- curryCalendar :: ((Integer, Int), Int) -> Day
+-- curryCalendar = uncurry.uncurry $fromGregorian
 

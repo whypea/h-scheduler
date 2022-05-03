@@ -26,7 +26,7 @@ makeICS name = openFile (name ++ ".ics") WriteMode
                  
 
 writeVCalendar :: Handle -> Vcalendar -> IO ()
-writeVCalendar hdl cal = hPutStrLn hdl (show cal) 
+writeVCalendargi hdl cal = hPutStrLn hdl (show cal) 
 
 
 doPrintTest :: IO () 
