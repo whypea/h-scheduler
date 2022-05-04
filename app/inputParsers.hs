@@ -18,13 +18,12 @@ import Data.Char
 import Data.Void
 import Data.Time
 import Data.Time.Calendar.MonthDay
-import Data.Tuple.Select
 import Data.Text
 
 import Control.Lens
 import Control.Monad.Trans.State 
 import Control.Monad
-
+import Control.Applicative.Permutations 
 type MParser = Parsec Void String 
 
 ---- !Helpers
@@ -34,6 +33,7 @@ emptySingle x = void $ single x
 date :: IO Day -- :: (year,month,day)
 date = getCurrentTime >>=  return . utctDay
 
+--TODO.. (See if this can't be made safe?)
 unsafeCurrentTime :: UTCTime
 unsafeCurrentTime = unsafePerformIO getCurrentTime 
 
@@ -49,7 +49,7 @@ gregDay x = (toGregorian $ utctDay x)^._3
 makeUTCTime :: Day -> DiffTime -> UTCTime
 makeUTCTime day time = UTCTime (day) (time)
 
-getIntegerType :: Num a => MParser (Maybe a)
+getNumType :: Num a => MParser (Maybe a)
 getIntegerType = do a <- L.decimal
                     return (Just a)
 
@@ -64,9 +64,13 @@ nextWeekday wd now = addDays x now
 --                        return (Just a)
 
 ---- !Parsers
---TODO: Put together the other parsers
+--TODO: Put together the other parsers in a permutation 
 getEvent :: MParser Pevent 
-getEvent = undefined
+getEvent = do fmap Interval getIntegerType
+              fmap ByMonth getIntegerType
+              fmap ByDay getIntegerType
+              fmap Prio getIntegerType
+              
 
 getDay :: MParser DayOfWeek
 getDay = do choice 
@@ -106,8 +110,8 @@ getrFreq = do choice
  , YEARLY  <$ string' "yearly"       
  , YEARLY  <$ string' "every year"]       
 
-rfreqmap :: String -> MParser Vrfreq
-rfreqmap s = [fmap [HOURLY, DAILY, WEEKLY, MONTHLY, YEARLY]]   
+-- rfreqmap :: String -> MParser Vrfreq
+-- rfreqmap s = [fmap [HOURLY, DAILY, WEEKLY, MONTHLY, YEARLY]]   
 
 getISO :: MParser Day
 getISO = do year <- getYear
@@ -131,9 +135,10 @@ getnMonth :: MParser Day
 getnMonth = do month <- string' "next " *> getMonth  
                return (fromGregorian (gregYear unsafeCurrentTime) month (gregDay unsafeCurrentTime))
 
--- getnWeek :: MParser Day
--- getnWeek = 
-
+getnWeek :: MParser Day
+getnWeek = do month <- string' "next week"  
+              return (addDays 7 $fromGregorian (gregYear uct) (gregMonth uct) (gregDay uct))
+      where uct = unsafeCurrentTime
 getYearHelper :: MParser String
 getYearHelper = takeP (Just "four") 4 <|> takeP (Just "two") 2  <* eof
 
