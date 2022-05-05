@@ -18,7 +18,10 @@ data Opts = Opts {
     ,verbose  :: Bool
     ,input    :: Bool 
 }
---parserInfo 
+
+-- commands = 
+
+ 
 sample :: O.Parser Opts
 sample = Opts
       <$> O.strOption
@@ -27,7 +30,8 @@ sample = Opts
          <> O.value "MyCalendar"
          <> O.help "Filename for the calendar file" )
       <*> O.strOption
-          ( O.long "Unique Identifier"
+          ( O.long "Unique Identifier" 
+         <> O.short 'u'
          <> O.metavar "UID"
          <> O.value "@h-scheduler"
          <> O.help "Identifier for the instance" ) 
@@ -44,7 +48,9 @@ sample = Opts
          <> O.short 'i'
          <> O.help "Make (True) or edit (False) file")
 
---TODO make it accept values
+
+
+--TODO make it accept values (meaning, run commands)
 --TODO make it quit
 --TODO sleep and wakeup times? (should be implied honestly) 
 cli :: IO () 
