@@ -28,7 +28,7 @@ newtype Priority = Priority {pEvent :: Pevent} -- timed tasks with a priority, f
 newtype Todo  = Todo {tEvent :: Pevent}     --Any time, priority has lower pecedence than above
 --               |Free 
 
-type CState a= State ([Scheduled], [Scheduled]) a --Conflicts/not conflicts
+type CState a = State ([Scheduled], [Scheduled]) a --Conflicts/not conflicts
  --
 timeCompare :: Pevent -> Pevent -> Bool
 timeCompare p1 p2 = diffUTCTime ((pSET $ p1)^._1)  ((pSET $ p2)^._2) < 0 && diffUTCTime ((pSET $ p1)^._2) ((pSET $ p2)^._1) > 0  
@@ -48,7 +48,7 @@ orderSolve = fmap typeOC
 
 --Finds amount of collisions in the dates
 oCompare :: [Ordered] -> Int
-oCompare ls = length ls -(length $ nubBy (\x y -> timeCompare (oEvent x) (oEvent y) ) ls) 
+oCompare ls = length ls - (length $ nubBy (\x y -> timeCompare (oEvent x) (oEvent y) ) ls) 
 
 ocCheck ::[Ordered] -> CState ()-> CState ()
 ocCheck ord state = if oCompare ord == 0 then modify (\(l,r) -> (l,r ++ (orderSolve ord))) else modify (\(l,r) -> (l++ (orderSolve ord),r))
@@ -71,14 +71,19 @@ ocCheck2 ord = modify (\(l,r) -> (l ++ (orderSolve $ head colGroups),r ++ (order
     where colGroups = findoColGroups ord
 
 -- ----dlSolve 
--- typeDC :: Deadlline -> Scheduled
--- typeDC (DL devt) = Scheduled devt
+typeDC :: Deadline -> Scheduled
+typeDC (DL devt) = Scheduled devt
 
--- dlSolve :: [Deadline] -> [Scheduled]
--- dlSolve = fmap typeDC
+dlSolve :: [Deadline] -> [Scheduled]
+dlSolve = fmap typeDC
 
--- dcCheck ::[Deadline] -> CState
--- dcCheck dl = modify (++ dlSolve dl)
+-- dcCheck ::[Deadline] -> CState ()
+-- dcCheck dl = modify ((++ dlSolve dl),(++ dlSolve dl))
+
+-- dSolve :: []
+
+--binary search for a date some days before the deadline, not in the middle of the night (8-18)
+-- Option for 
 
 -- --------prioSolve
 -- typePC :: Priority -> Scheduled
@@ -103,4 +108,4 @@ utcdates = [(UTCTime (fg 2014 12 12) (stdt 200),UTCTime (fg 2014 12 12) (stdt 23
             (UTCTime (fg 2014 12 13) (stdt 220), UTCTime (fg 2014 12 13) (stdt 250))]
 
 timeCompare2 :: (UTCTime,UTCTime) -> (UTCTime,UTCTime) -> Bool
-timeCompare2 p1 p2 = diffUTCTime (p1^._1)  (p2^._2) < 0 && diffUTCTime (p1^._2) (p2^._1) > 0  
+timeCompare2 p1 p2 = diffUTCTime (p1^._1) (p2^._2) < 0 && diffUTCTime (p1^._2) (p2^._1) > 0  

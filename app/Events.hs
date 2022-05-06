@@ -94,15 +94,15 @@ instance Show a => Show (MT a) where
 
 data VrRule = VrRule
     {
-    rFreq      :: Vrfreq --P (Freq)
-    ,rUntil    :: Until --P (Day)
-    ,rReoccur  :: Reoccur 
-    ,rInterval :: Interval
-    ,rbyMonth  :: ByMonth --P
-    ,rbyDay    :: ByDay   --P
-    ,rbyMonthDay :: MonthDay   --TODO make types for these
-    ,rByYearDay :: YearDay 
-    ,rByWeekNo :: WeekNo
+    rFreq      :: Vrfreq       --P (Freq)
+    ,rUntil    :: Until        --P (Day)
+    ,rReoccur  :: Countr       --P (Integer) 
+    ,rInterval :: Interval     --P (Integer)
+    ,rbyMonth  :: ByMonth      --P (Integer)
+    ,rbyDay    :: ByDay        --P (Integer)
+    ,rbyMonthDay :: MonthDay   --P
+    ,rByYearDay :: YearDay     --P (Integer)
+    ,rByWeekNo :: WeekNo       --P (Integer)
     }
 
 --TODO Generalise the show instances
@@ -115,11 +115,11 @@ instance Show Until where
     show (Until (Just day)) = "UNTIL=" ++ filter (/= '-') (showGregorian day) ++ ";"
     show (Until Nothing)    = ""
 
-newtype Reoccur = Reoccur (Maybe Integer)
+newtype Countr = Countr (Maybe Integer)
 
-instance Show Reoccur where
-    show (Reoccur (Just a)) = "COUNT=" ++ show a ++ ";"
-    show (Reoccur Nothing) = ""
+instance Show Countr where
+    show (Countr (Just a)) = "COUNT=" ++ show a ++ ";"
+    show (Countr Nothing) = ""
 
 newtype Interval = Interval (Maybe Integer)
 
@@ -127,7 +127,7 @@ instance Show Interval where
     show (Interval (Just a)) = "INTERVAL=" ++ show a ++ ";"
     show (Interval Nothing) = ""
 
-newtype ByMonth = ByMonth (Maybe Integer)
+newtype ByMonth = ByMonth (Maybe Int)
 
 instance Show ByMonth where
     show (ByMonth (Just a)) = "BYMONTH=" ++ show a ++ ";"
@@ -141,23 +141,35 @@ instance Show ByDay where
 
 newtype MonthDay = MonthDay (Maybe DayOfMonth)
 
+instance Show MonthDay where
+    show (MonthDay (Just a)) = "MONTHDAY=" ++ show a ++ ";"
+    show (MonthDay Nothing) = ""
+
 newtype YearDay  = YearDay (Maybe DayOfYear)
+
+instance Show YearDay where
+    show (YearDay (Just a)) = "YEARDAY=" ++ show a ++ ";"
+    show (YearDay Nothing) = ""
 
 newtype WeekNo = WeekNo (Maybe WeekOfYear)
 
+instance Show WeekNo where
+    show (WeekNo (Just a)) = "WEEKNO=" ++ show a ++ ";"
+    show (WeekNo Nothing) = ""
+
 --TODO: replace with something like intersperse 
 instance Show VrRule  where
-    show (VrRule freq until (Reoccur Nothing) interval mon day _ _ _) =       --
+    show (VrRule freq until (Countr Nothing) interval mon day _ _ _) =       --
      show freq ++ show until ++ show interval ++ show mon ++ show day
     show (VrRule freq (Until Nothing) reoccur interval mon day _ _ _) =
      show freq ++ show reoccur ++ show interval ++ show mon ++ show day
-    show (VrRule freq (Until Nothing) (Reoccur Nothing) interval mon day _ _ _) =
+    show (VrRule freq (Until Nothing) (Countr Nothing) interval mon day _ _ _) =
      show freq  ++ show interval ++ show mon ++ show day
     show VrRule{..} = ""
 
 
 
---Cutting out some of the choices
+--Cutting out some of the choices like "minutely" and "secondly"
 data Vrfreq = HOURLY | DAILY | WEEKLY | MONTHLY | YEARLY
  deriving (Show, Eq, Ord)
 
@@ -195,7 +207,7 @@ instance Show Vcalendar where
 
 printList :: Show a => [a] -> String
 printList [] = ""
-printlist (x:xs) = show x ++ printList xs
+printList (x:xs) = show x ++ printList xs
 
 --printers
 
