@@ -2,6 +2,7 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE FlexibleContexts   #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Files where
 
@@ -15,9 +16,7 @@ import System.Directory
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import Data.Time.LocalTime
-
--- getICS :: FilePath -> Maybe Handle 
--- getICS (fp) = fp 
+import Data.Maybe
 
 testCal = Vcalendar "123" (Version "2") GREGORIAN (TZ (TimeZone 0 False "UTC")) []
 
@@ -26,15 +25,23 @@ makeICS name = openFile (name ++ ".ics") WriteMode
                  
 
 writeVCalendar :: Handle -> Vcalendar -> IO ()
-writeVCalendargi hdl cal = hPutStrLn hdl (show cal) 
+writeVCalendar hdl cal = hPutStrLn hdl (show cal) 
+
+doPrintTest :: String -> IO () 
+doPrintTest name = do dfe <- doesFileExist (name ++ ".ics") 
+                      if dfe 
+                          then do h <- openFile (name ++ ".ics") ReadWriteMode
+                                  writeVCalendar h testCal
+                                  hClose h
+                                  return ()
+                          else do putStrLn "File does not exist"
+                                  return () 
+                      
+
+    
+-- doesFileExist (name ++ ".ics") >>= \case 
+--                   True -> Just (openFile (name ++ ".ics") ReadWriteMode )
+--                   False -> Nothing 
 
 
-doPrintTest :: IO () 
-doPrint = do h <- makeICS "test"
-             writeVEvent h testCal
-             hClose h
-             return ()
-
--- getICS :: String -> Either IO ()
--- getICS name = writeFile name 
 

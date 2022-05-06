@@ -50,13 +50,19 @@ makeUTCTime :: Day -> DiffTime -> UTCTime
 makeUTCTime day time = UTCTime (day) (time)
 
 getNumType :: Num a => MParser (Maybe a)
-getIntegerType = do a <- L.decimal
-                    return (Just a)
+getNumType = Just <$> L.decimal 
+
+getCNumType :: (Num a, Ord a) => a -> MParser (Maybe a)
+getCNumType c = Just <$> (fmap (clip c) L.decimal)
+
+clip ::(Num a,Ord a) => a -> a -> a 
+clip c x = if x > c then c else x
+
 
 nextWeekday :: DayOfWeek -> Day -> Day -- -> UTCTime -> UTCTime 
 nextWeekday wd now = addDays x now
  where x = if diff < 0 then (-toInteger diff) else 7 -(toInteger diff)
-       diff = (fromEnum $dayOfWeek now) - (fromEnum wd)
+       diff = (fromEnum $ dayOfWeek now) - (fromEnum wd)
 
 --TODO Fix this
 -- getStringType :: String -> MParser (Maybe a)
@@ -64,13 +70,40 @@ nextWeekday wd now = addDays x now
 --                        return (Just a)
 
 ---- !Parsers
---TODO: Put together the other parsers in a permutation 
-getEvent :: MParser Pevent 
-getEvent = do fmap Interval getIntegerType
-              fmap ByMonth getIntegerType
-              fmap ByDay getIntegerType
-              fmap Prio getIntegerType
-              
+--TODO: Put together the other parsers in a permutation, handles failures by returning "Nothing"
+getrRule :: MParser (Vrfreq, ByMonth, ByDay, Interval, Until, Countr) 
+getrRule =   intercalateEffect (char ' ') $ (,,,,,)
+             <$> toPermutation (getrFreq)
+             <*> toPermutationWithDefault (ByMonth Nothing) getByMonth
+             <*> toPermutationWithDefault (ByDay Nothing) getByDay
+             <*> toPermutationWithDefault (Interval Nothing) getInterval
+             <*> toPermutationWithDefault (Until Nothing) getUntil
+             <*> toPermutationWithDefault (Countr Nothing) getCountr 
+
+getByMonth :: MParser ByMonth
+getByMonth = ByMonth <$> (string' "ByMonth " *> fmap Just getMonth)
+
+getByDay :: MParser ByDay
+getByDay = ByDay <$> (string' "ByDay " *> fmap Just getDay)
+
+getInterval :: MParser Interval 
+getInterval = Interval <$> (string' "Interval " *> getNumType)
+
+getUntil :: MParser Until 
+getUntil = Until <$> (string' "Until " *> fmap Just getDateMonth)
+
+getCountr :: MParser Countr 
+getCountr = Countr <$> (string' "Countr " *> getNumType)
+
+getYearDay :: MParser YearDay 
+getYearDay = YearDay <$> (string' "YearDay " *> getCNumType 365)
+
+getMonthDay :: MParser MonthDay 
+getMonthDay = MonthDay <$> (string' "MonthDay " *> getCNumType 31)
+
+getWeekNo :: MParser WeekNo 
+getWeekNo = WeekNo <$> (string' "WeekNo " *> getCNumType 52)
+
 
 getDay :: MParser DayOfWeek
 getDay = do choice 
@@ -84,18 +117,18 @@ getDay = do choice
 
 getMonth :: MParser Int
 getMonth = do choice 
- [ 1    <$ string' "Jan" <* many alphaNumChar
+ [ 1   <$ string' "Jan" <* many alphaNumChar
  , 2   <$ string' "Feb"<* many alphaNumChar 
- , 3      <$ string' "Mar" <* many alphaNumChar 
- , 4      <$ string' "Apr" <* many alphaNumChar 
- , 5        <$ string' "May"<* many alphaNumChar 
- , 6       <$ string' "Jun" <* many alphaNumChar 
- , 7          <$ string' "Jul" <* many alphaNumChar 
- , 8     <$ string' "Aug" <* many alphaNumChar 
- , 9  <$ string' "Sep" <* many alphaNumChar 
- , 10    <$ string' "Oct" <* many alphaNumChar 
- , 11   <$ string' "Nov" <* many alphaNumChar 
- , 12   <$ string' "Dec" <* many alphaNumChar ]
+ , 3   <$ string' "Mar" <* many alphaNumChar 
+ , 4   <$ string' "Apr" <* many alphaNumChar 
+ , 5   <$ string' "May"<* many alphaNumChar 
+ , 6   <$ string' "Jun" <* many alphaNumChar 
+ , 7   <$ string' "Jul" <* many alphaNumChar 
+ , 8   <$ string' "Aug" <* many alphaNumChar 
+ , 9   <$ string' "Sep" <* many alphaNumChar 
+ , 10  <$ string' "Oct" <* many alphaNumChar 
+ , 11  <$ string' "Nov" <* many alphaNumChar 
+ , 12  <$ string' "Dec" <* many alphaNumChar ]
 
 getrFreq :: MParser Vrfreq --List of tuples
 getrFreq = do choice 
@@ -128,29 +161,29 @@ getDateMonth = do month <- L.decimal
                   return (fromGregorian (gregYear unsafeCurrentTime) month day) 
 
 getnDay :: MParser Day
-getnDay = do day <- string' "next "  *> getDay
-             return (nextWeekday day  $unsafePerformIO date)
+getnDay = do day <- string' "next " *> getDay
+             return (nextWeekday day  $ unsafePerformIO date)
 
-getnMonth :: MParser Day 
-getnMonth = do month <- string' "next " *> getMonth  
-               return (fromGregorian (gregYear unsafeCurrentTime) month (gregDay unsafeCurrentTime))
+-- getnMonth :: MParser Day 
+-- getnMonth = do month <- string' "next " *> getMonth  
+--                return (fromGregorian (gregYear unsafeCurrentTime) (month+1) (gregDay unsafeCurrentTime))
 
 getnWeek :: MParser Day
 getnWeek = do month <- string' "next week"  
-              return (addDays 7 $fromGregorian (gregYear uct) (gregMonth uct) (gregDay uct))
+              return (addDays 7 $ fromGregorian (gregYear uct) (gregMonth uct) (gregDay uct))
       where uct = unsafeCurrentTime
+
 getYearHelper :: MParser String
 getYearHelper = takeP (Just "four") 4 <|> takeP (Just "two") 2  <* eof
+
+-- getMDay :: MParser Day -> MParser (Maybe Day)
+-- getMDay = fmap Just
 
 getYear :: MParser Integer --(>=>) might be useful
 getYear = do a <- getYearHelper
              setInput a       --cheating function, lets you combine parsers
              b <- L.decimal
              return b
-
-getReoccur :: MParser Reoccur 
-getReoccur = do a <- getIntegerType 
-                return (Reoccur a)
 
 --getICSFile :: Handle -> MParser  
 
