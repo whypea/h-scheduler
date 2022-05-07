@@ -22,21 +22,35 @@ import Control.Monad.Except (ExceptT)
 --UTCTime: yyyy-mm-ddThh:mm:ss
 --possibility to split up
 newtype Scheduled = Scheduled {sEvent :: Pevent}
-newtype Ordered = Ordered {oEvent :: Pevent}  --Set date, eg. meetings   
-newtype Deadline = DL {dEvent :: Pevent}       --Certain date to finish by, 
-newtype Priority = Priority {pEvent :: Pevent} -- timed tasks with a priority, flexible (maybe with )
-newtype Todo  = Todo {tEvent :: Pevent}     --Any time, priority has lower pecedence than above
+newtype Ordered = Ordered {oEvent :: Pevent}            --Set date, eg. meetings   
+newtype Deadline = DL {dEvent :: Pevent}                --Certain date to finish by, 
+newtype Prioritized = Prioritized {pEvent :: Pevent}    --timed tasks with a priority, flexible (maybe with )
+newtype Todo  = Todo {tEvent :: Pevent}                 --Any time, priority has lower pecedence than above
 --               |Free 
 
 type CState a = State ([Scheduled], [Scheduled]) a --Conflicts/not conflicts
  --
+
+toPevent :: Vevent -> Pevent 
+toPevent s@(Vevent {..}) = Pevent s (uprio ePrio) (udts eDTStart,udte eDTEnd)
+ where uprio (Priority (Just a)) = a  
+       udts (DateStart a) = a
+       udte (DateStop (Just a)) = a
+
+toDeadline :: Pevent -> Deadline 
+toDeadline = undefined
+
+toPrio :: Pevent -> Prioritized 
+toPrio = undefined 
+
+toTodo :: Pevent -> Todo
+
 timeCompare :: Pevent -> Pevent -> Bool
 timeCompare p1 p2 = diffUTCTime ((pSET $ p1)^._1)  ((pSET $ p2)^._2) < 0 && diffUTCTime ((pSET $ p1)^._2) ((pSET $ p2)^._1) > 0  
 
 -- ->  solve -> check and add to state -> Either for errors?   
---TODO: implement a binary search with timeCompare
 
-constrSolve :: [Ordered] -> [Scheduled]
+constrSolve :: [Ordered] -> [Deadline] -> [Prioritized] -> [Todo] -> Either [Scheduled] [Scheduled]
 constrSolve = undefined
 
 ----ordSolve
@@ -63,22 +77,24 @@ findoCollisions n ords = [Ordered f1] ++ findoCollisions (n-1) (fmap Ordered f2)
                             False -> find xs
           (f1,f2) = (find sorted) 
 
+--These two might invalidate the functions above 
 findoColGroups :: [Ordered] -> [[Ordered]]
 findoColGroups = groupBy (\o1 o2 -> timeCompare (oEvent o1) (oEvent o2)) 
 
 ocCheck2 ::[Ordered] -> CState ()
-ocCheck2 ord = modify (\(l,r) -> (l ++ (orderSolve $ head colGroups),r ++ (orderSolve $ concat $ tail colGroups)))
+ocCheck2 ord = modify (\(l,r) -> (l ++ (orderSolve $ head colGroups), r ++ (orderSolve $ concat $ tail colGroups)))
     where colGroups = findoColGroups ord
 
 -- ----dlSolve 
 typeDC :: Deadline -> Scheduled
 typeDC (DL devt) = Scheduled devt
 
-dlSolve :: [Deadline] -> [Scheduled]
-dlSolve = fmap typeDC
+dlSolve :: Deadline -> CState () -> CState ()
+dlSolve d ostate = do 
 
--- dcCheck ::[Deadline] -> CState ()
--- dcCheck dl = modify ((++ dlSolve dl),(++ dlSolve dl))
+
+dcCheck ::[Deadline] -> CState () -> CState ()
+dcCheck dl ostate = 
 
 -- dSolve :: []
 
@@ -95,7 +111,7 @@ dlSolve = fmap typeDC
 -- pcCheck :: [Priority] -> CState
 -- pcCheck prio = undefined   --modify (++ prioSolve prio)
 
--- -- unorderedSolve :: [Todo] -> [Scheduled] -> CState
+-- -- unorderedSolve :: [Todo] -> CState () -> [Scheduled]
 -- -- unorderedSolve todos = undefined
 
 -- --Not quite tests

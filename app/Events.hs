@@ -24,6 +24,7 @@ import Data.Data
 import Control.Monad.Trans.State (StateT)
 import Data.Time.Calendar.Julian (DayOfYear)
 import Data.Time.Calendar.OrdinalDate (WeekOfYear)
+import GHC.Read (Read(readPrec))
  
 newtype Datetime = DT UTCTime
 
@@ -48,43 +49,92 @@ data Vevent = Vevent
     {
     eDTstamp :: Datetime --P
     ,eUID     :: UID    --P (takes Datetime)
-    ,eClass   :: T.Text
-    ,eDTStart :: UTCTime --P
-    ,eDTEnd   :: UTCTime --P
-    ,eDescription :: String --P? ()
-    ,ePrio :: MT T.Text       --P
-    ,eSeq :: MT T.Text        --P
-    ,eTimeTrans :: Transp     --TODO 
-    ,eAlarm :: MT T.Text      --TODO 
+    ,eClass   :: EClass
+    ,eDTStart :: DateStart --P
+    ,eDTEnd   :: DateStop --P
+    ,eDuration :: Duration
+    ,eDescription :: Desc --P? ()
+    ,ePrio :: Priority     --P
+    ,eSeq :: EvtSequence        --P
+    ,eTimeTrans :: Maybe Transp     --TODO 
     ,eRRule :: VrRule
     }
 
 data Transp = TRANSPARENT | OPAQUE deriving (Show, Enum)
 
-data EClass token = PUBLIC | PRIVATE | CONFIDENTIAL | IANA token | XNAME token 
+data DateStart = DateStart UTCTime 
 
-instance Show a => Show (EClass a) where 
+--TODO make the correct formatting with formatTime
+instance Show (DateStart) where
+    show (DateStart a) = "DTSTART=" ++ filter (dtCond) (iso8601Show a) ++ "\n"
+    
+
+data DateStop = DateStop (Maybe UTCTime) 
+
+instance Show (DateStop) where
+    show (DateStop (Just a)) = "DTSTOP=" ++ filter (dtCond) (iso8601Show a) ++ "\n"
+    show (DateStop (Nothing)) = ""
+
+data Desc = Desc (Maybe String)
+
+instance Show (Desc) where
+    show (Desc (Just a)) = "DESCRIPTION= " ++ show a ++ "\n"
+    show (Desc (Nothing)) = ""
+
+data EClass = PUBLIC | PRIVATE | CONFIDENTIAL | IANA String | XNAME String 
+
+instance Show (EClass) where 
     show PUBLIC = "PUBLIC"
     show PRIVATE = "PRIVATE"
     show CONFIDENTIAL = "CONFIDENTIAL"
-    show (IANA a) = show a
-    show (XNAME a) = show a 
+    show (IANA a) = "IANA" ++ show a
+    show (XNAME a) = "XNAME" ++ show a 
 
 newtype UID = UID String deriving (Show)
 
--- concat $zipWith (++) (fmap show [eDTstamp, eUID ,eClass,eDTStart,eDescription,ePrio,eSeq,eTimeTrans,eRecur,eAlarm,eRRule])
+data Priority = Priority (Maybe Int) 
+
+instance Show Priority where 
+    show (Priority (Just a)) = "PRIORITY=" ++ show a ++ "\n"
+    show (Priority Nothing) = "" 
+
+data EvtSequence = EvtSequence (Maybe Int)
+
+instance Show EvtSequence where 
+    show (EvtSequence (Just a)) = "SEQUENCE=" ++ show a
+    show (EvtSequence (Nothing)) = ""
+
+data Duration = Duration (Maybe DiffTime)
+    
+instance Show Duration where
+    show (Duration (Just a)) = "DURATION=" ++ show a 
+    show (Duration (Nothing)) = ""
+
+--TODO Format
+--DurFormat
+
+
+-- instance Show Duration where 
+--     show (Duration (Just a)) = 
+
 -- concat $zipWith (++) (fmap show [eDTstamp, eUID ,eClass,eDTStart,eDescription,ePrio,eSeq,eTimeTrans,eRecur,eAlarm,eRRule])
 -- ["DATETIME","UID:", "CLASS:", "DTSTART:", "DESCRIPTION", "PRIORITY:", "SEQUENCE:", "TRANSP:", "RECUR:", "ALARM:", "RRULE:"]--TODO
 
 
 --TODO this is disgusting
 instance Show Vevent where
-     show (Vevent stamp uid eclass start end desc prio seq timet  alarm rrule) =
-         "BEGIN=" ++ "VEVENT=" ++ "DATETIME= "++ show stamp ++ ";" ++  "UID=" ++ show uid ++ ";"  ++ show uid
-         ++ "CLASS=" ++ show eclass ++ ";" ++ "DTSTART=" ++ show start ++ ";"++ "DTEND="
-         ++ show end ++ ";"  ++ "DESCRIPTION=" ++ show desc ++ ";" ++ "PRIORITY=" ++
-         show prio ++ ";" ++ "SEQUENCE=" ++ show seq ++ ";"++ "TRANSP=" ++ show timet++ ";" ++
-         "RECUR=" ++ show rrule ++ ";" ++ "ALARM=" ++ show alarm ++ ";"
+     show (Vevent stamp uid eclass start (DateStop Nothing) duration desc prio seq timet rrule) =
+         "BEGIN: VEVENT=" ++ "\n" ++ show stamp ++ "\n" ++ show uid ++ "\n" ++ "CLASS=" 
+         ++ show eclass ++ ";" ++ show start ++ ";" ++ show duration ++ "\n" ++ "DESCRIPTION=" 
+         ++ show desc ++ "\n"  ++ show prio ++ "\n" ++ show seq ++ "\n"
+         ++ "TRANSP=" ++ show timet ++ "\n" ++ "RECUR=" ++ show rrule ++ "\n" 
+         
+     show (Vevent stamp uid eclass start stop (Duration Nothing) desc prio seq timet rrule) =
+         "BEGIN= VEVENT=" ++ "\n" ++ "DATETIME="++ show stamp ++ "\n" ++  "UID=" ++ show uid ++ "\n" ++ "CLASS=" 
+         ++ show eclass ++ ";" ++ "DTSTART=" ++ show start ++ ";"++ "DTEND="
+         ++ show stop ++ "\n" ++ "DESCRIPTION=" ++ show desc ++ "\n" ++ "PRIORITY=" ++
+         show prio ++ "\n" ++"SEQUENCE=" ++ show seq ++ "\n" ++ "TRANSP=" ++ show timet ++ "\n" 
+         ++ "RECUR=" ++ show rrule ++ "\n"
 
 newtype MT a= MT {a :: Maybe a}
 
@@ -109,7 +159,7 @@ data VrRule = VrRule
 -- data MShow (a :: Maybe b) where
 --     ShowMaybe :: Show b => MShow a
 
-newtype Until = Until (Maybe Day)
+newtype Until = Until (Maybe UTCTime)
 
 instance Show Until where
     show (Until (Just day)) = "UNTIL=" ++ filter (/= '-') (showGregorian day) ++ ";"
@@ -136,7 +186,13 @@ instance Show ByMonth where
 newtype ByDay = ByDay (Maybe DayOfWeek) 
 
 instance Show ByDay where
-    show (ByDay (Just a)) = "BYDAY=" ++ show a ++ ";"
+    show (ByDay (Just Monday)) = "BYDAY=MO;"
+    show (ByDay (Just Tuesday)) = "BYDAY=TU;"
+    show (ByDay (Just Wednesday)) = "BYDAY=WE;"
+    show (ByDay (Just Thursday)) = "BYDAY=TH;"
+    show (ByDay (Just Friday)) = "BYDAY=FR;"
+    show (ByDay (Just Saturday)) = "BYDAY=SA;"
+    show (ByDay (Just Sunday)) = "BYDAY=SU;"
     show (ByDay Nothing) = ""
 
 newtype MonthDay = MonthDay (Maybe DayOfMonth)
@@ -214,8 +270,5 @@ printList (x:xs) = show x ++ printList xs
 --TODO Change this to an option passed down from CLI
 uidID :: [Char]
 uidID = "@h-scheduler"
-
-makeUID :: [Char]
-makeUID = foldr1 (++) [filter dtCond (show $ DT $ unsafePerformIO getCurrentTime), uidID] --Documentation doesn't give any side-effects
 
 
