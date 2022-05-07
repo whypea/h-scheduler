@@ -18,7 +18,7 @@ import Data.Char
 import Data.Void
 import Data.Time
 import Data.Time.Calendar.MonthDay
-import Data.Text
+import qualified Data.Text as T
 
 import Control.Lens
 import Control.Monad.Trans.State 
@@ -29,6 +29,9 @@ type MParser = Parsec Void String
 ---- !Helpers
 emptySingle :: (MonadParsec e s m, Token s ~ Char) => Token s -> m () --from source of space 
 emptySingle x = void $ single x
+
+makeUID :: [Char] 
+makeUID = foldr1 (++) [filter dtCond (show $ DT $ unsafePerformIO getCurrentTime), uidID] --Documentation doesn't give any side-effects
 
 date :: IO Day -- :: (year,month,day)
 date = getCurrentTime >>=  return . utctDay
@@ -58,27 +61,32 @@ getCNumType c = Just <$> (fmap (clip c) L.decimal)
 clip ::(Num a,Ord a) => a -> a -> a 
 clip c x = if x > c then c else x
 
-
 nextWeekday :: DayOfWeek -> Day -> Day -- -> UTCTime -> UTCTime 
 nextWeekday wd now = addDays x now
  where x = if diff < 0 then (-toInteger diff) else 7 -(toInteger diff)
        diff = (fromEnum $ dayOfWeek now) - (fromEnum wd)
 
+getStr :: MParser (Maybe String)
+getStr = Just <$> (some alphaNumChar <* eof)
 --TODO Fix this
 -- getStringType :: String -> MParser (Maybe a)
 -- getStringType str = do a <- string' str
 --                        return (Just a)
 
 ---- !Parsers
---TODO: Put together the other parsers in a permutation, handles failures by returning "Nothing"
-getrRule :: MParser (Vrfreq, ByMonth, ByDay, Interval, Until, Countr) 
-getrRule =   intercalateEffect (char ' ') $ (,,,,,)
+--DONE?: Put together the other parsers in a permutation, handles failures by returning "Nothing" 
+--Might be defined 
+getrRule :: MParser VrRule
+getrRule =   intercalateEffect (char ' ') $ VrRule
              <$> toPermutation (getrFreq)
+             <*> toPermutationWithDefault (Until Nothing) getUntil
+             <*> toPermutationWithDefault (Countr Nothing) getCountr
+             <*> toPermutationWithDefault (Interval Nothing) getInterval
              <*> toPermutationWithDefault (ByMonth Nothing) getByMonth
              <*> toPermutationWithDefault (ByDay Nothing) getByDay
-             <*> toPermutationWithDefault (Interval Nothing) getInterval
-             <*> toPermutationWithDefault (Until Nothing) getUntil
-             <*> toPermutationWithDefault (Countr Nothing) getCountr 
+             <*> toPermutationWithDefault (MonthDay Nothing) getMonthDay
+             <*> toPermutationWithDefault (YearDay Nothing) getYearDay
+             <*> toPermutationWithDefault (WeekNo Nothing) getWeekNo 
 
 getByMonth :: MParser ByMonth
 getByMonth = ByMonth <$> (string' "ByMonth " *> fmap Just getMonth)
@@ -105,6 +113,68 @@ getWeekNo :: MParser WeekNo
 getWeekNo = WeekNo <$> (string' "WeekNo " *> getCNumType 52)
 
 
+
+----VEVENT
+
+getVevent :: MParser (Datetime, UID, EClass, DateStart, DateStop)
+getVevent =   intercalateEffect (char ' ') $ (,,,,)
+             <$> toPermutation getDTStamp
+             <*> toPermutation getUID
+             <*> toPermutationWithDefault (PRIVATE) getClass
+             <*> toPermutation getDateStart
+             <*> toPermutationWithDefault (DateStop Nothing) getDateStop
+            --  <*> toPermutationWithDefault (Desc Nothing) getDesc
+            --  <*> toPermutationWithDefault (Duration Nothing) getDuration
+            --  <*> toPermutationWithDefault (Priority Nothing) getPrio
+            --  <*> toPermutationWithDefault (EvtSequence Nothing) getEvtSeq 
+            --  <*> toPermutationWithDefault (Transp Nothing) (Just <$> getTransp)
+            --  <*> toPermutationWithDefault (VrRule Nothing) getrRule
+
+getDTStamp :: MParser Datetime
+getDTStamp = DT <$> getDateTime
+
+getUID :: MParser UID
+getUID = pure (UID (makeUID :: String))
+
+getClass :: MParser EClass
+getClass = choice 
+ [ PUBLIC <$ string' "public"
+ , PRIVATE <$ string' "private"
+ , CONFIDENTIAL <$ string' "Confidential"
+ --, IANA <$ string' "public"
+ --, XNAME <$ string' "public"  
+ ]
+
+getDateStart :: MParser DateStart
+getDateStart =  DateStart <$> (string' "Start" *> getDateTime)
+
+getDateStop :: MParser DateStop
+getDateStop =   DateStop <$> (string' "Stop" *> (Just <$> getDateTime))
+
+getDesc :: MParser Desc
+getDesc = Desc <$> (string' "Desc" *>  getStr)
+
+getDuration :: MParser Until
+getDuration = Until <$> (string' "Until" *> getDateTime)
+
+getPrio :: MParser Priority
+getPrio = Priority <$> (string' "Priority " *> getNumType)
+
+getEvtSeq :: MParser EvtSequence
+getEvtSeq = EvtSequence <$> getNumType
+
+getTransp :: MParser Transp
+getTransp = choice 
+ [TRANSPARENT <$ string' "Transparent"
+ , OPAQUE <$ string' "Opaque"
+ ]
+
+
+getDateTime :: MParser UTCTime  
+getDateTime = UTCTime <$> (choice [getISO, getDateMonth]) <*> (getTimeDay) 
+            -- do date <- (choice [getISO, getDateMonth]) 
+            --      time <- getHour
+            --      return (UTCTime date time)
 getDay :: MParser DayOfWeek
 getDay = do choice 
  [ Monday    <$ string' "mon" <* many alphaNumChar
@@ -146,6 +216,18 @@ getrFreq = do choice
 -- rfreqmap :: String -> MParser Vrfreq
 -- rfreqmap s = [fmap [HOURLY, DAILY, WEEKLY, MONTHLY, YEARLY]]   
 
+getTimeDay :: MParser DiffTime 
+getTimeDay = do x <- getHour
+                string' ":"
+                y <- getMinute
+                return(x+y)
+
+getHour :: MParser DiffTime
+getHour = ((secondsToDiffTime 3600*) <$> L.decimal)
+
+getMinute :: MParser DiffTime
+getMinute = ((secondsToDiffTime 60*) <$> L.decimal) 
+
 getISO :: MParser Day
 getISO = do year <- getYear
             try $ emptySingle '-' <|> space1
@@ -176,20 +258,13 @@ getnWeek = do month <- string' "next week"
 getYearHelper :: MParser String
 getYearHelper = takeP (Just "four") 4 <|> takeP (Just "two") 2  <* eof
 
--- getMDay :: MParser Day -> MParser (Maybe Day)
--- getMDay = fmap Just
-
 getYear :: MParser Integer --(>=>) might be useful
 getYear = do a <- getYearHelper
              setInput a       --cheating function, lets you combine parsers
              b <- L.decimal
              return b
 
---getICSFile :: Handle -> MParser  
+      
+-- getICSFile ::  MParser VCalendar
+-- getICSFile = 
 
-
-
-
-
--- getMonth :: MParser 
--- getMonth = undefined

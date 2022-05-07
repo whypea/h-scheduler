@@ -1,5 +1,9 @@
 module CLI where
 
+import InputParsers
+import Events
+import Files
+
 import Control.Monad.Trans.State
 import Data.Void
 import Control.Applicative
@@ -14,16 +18,22 @@ import qualified Options.Applicative as O
 data Opts = Opts {
      filename :: String
     ,uidsuffix :: String
+    -- ,starttime :: UTCTime
     ,bfill    :: Bool
     ,verbose  :: Bool
     ,input    :: Bool 
 }
 
--- commands = 
+-- commands 
 
- 
-sample :: O.Parser Opts
-sample = Opts
+data Commands = EditFile 
+              | CreateFile
+              | OrderedList
+              | DeadlineList
+              | PrioritizedList
+
+topOptions :: O.Parser Opts
+topOptions = Opts
       <$> O.strOption
           ( O.long "filename"
          <> O.metavar "FILE"
@@ -34,7 +44,12 @@ sample = Opts
          <> O.short 'u'
          <> O.metavar "UID"
          <> O.value "@h-scheduler"
-         <> O.help "Identifier for the instance" ) 
+         <> O.help "Identifier for the instance" )
+    --   <*> O.option
+    --       ( O.long "Start Time" 
+    --      <> O.short 'i'
+    --      <> O.metavar "20220507"
+    --      <> O.help "Start time for the calendar" ) 
       <*> O.switch
           ( O.long "bfill"
          <> O.short 'b'
@@ -58,7 +73,7 @@ cli = do
     options <- O.execParser opts
     return ()
   where
-    opts = O.info (sample <**> O.helper) --(<**>) :: Applicative f => f a -> f (a -> b) -> f b
+    opts = O.info (topOptions <**> O.helper) --(<**>) :: Applicative f => f a -> f (a -> b) -> f b
       ( O.fullDesc
      <> O.progDesc "Produce a ics file"
      <> O.header "h-scheduler" ) 
