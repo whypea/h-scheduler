@@ -98,7 +98,7 @@ getInterval :: MParser Interval
 getInterval = Interval <$> (string' "Interval " *> getNumType)
 
 getUntil :: MParser Until 
-getUntil = Until <$> (string' "Until " *> fmap Just getDateMonth)
+getUntil = Until <$> (string' "Until " *> fmap Just getDateTime)
 
 getCountr :: MParser Countr 
 getCountr = Countr <$> (string' "Countr " *> getNumType)
@@ -111,8 +111,6 @@ getMonthDay = MonthDay <$> (string' "MonthDay " *> getCNumType 31)
 
 getWeekNo :: MParser WeekNo 
 getWeekNo = WeekNo <$> (string' "WeekNo " *> getCNumType 52)
-
-
 
 ----VEVENT
 
@@ -154,8 +152,8 @@ getDateStop =   DateStop <$> (string' "Stop" *> (Just <$> getDateTime))
 getDesc :: MParser Desc
 getDesc = Desc <$> (string' "Desc" *>  getStr)
 
-getDuration :: MParser Until
-getDuration = Until <$> (string' "Until" *> getDateTime)
+getDuration :: MParser Duration
+getDuration = Duration <$> (string' "Duration" *> (Just <$> getTimeDay))
 
 getPrio :: MParser Priority
 getPrio = Priority <$> (string' "Priority " *> getNumType)
@@ -169,12 +167,30 @@ getTransp = choice
  , OPAQUE <$ string' "Opaque"
  ]
 
-
 getDateTime :: MParser UTCTime  
 getDateTime = UTCTime <$> (choice [getISO, getDateMonth]) <*> (getTimeDay) 
-            -- do date <- (choice [getISO, getDateMonth]) 
-            --      time <- getHour
-            --      return (UTCTime date time)
+
+------Pevent
+getEventCat :: MParser EventCat
+getEventCat = do choice 
+ [ Ord <$ string' "ordered"
+ , Dead <$ string' "deadline"
+ , Prio <$ string' "priority"
+ , Todo <$ string' "Todo"
+ ]
+
+-- getUTCPair :: MParser (UTCTime, UTCTime)
+-- getUTCPair = (,) <$> (string' "start: " *> getDateTime ) <*>(string' "end: " *> getDateTime)
+
+-- getPeventNew :: MParser Pevent 
+-- getPeventNew = Pevent <$> NoEvent 
+--                <*> L.decimal 
+--                <*> getUTCPair
+--                <*> (fmap .diffTimeToPicoseconds getTimeDay) 
+ 
+-- getPeventEdit :: MParser Pevent
+-- getPeventEdit = undefined
+
 getDay :: MParser DayOfWeek
 getDay = do choice 
  [ Monday    <$ string' "mon" <* many alphaNumChar
@@ -262,7 +278,7 @@ getYear :: MParser Integer --(>=>) might be useful
 getYear = do a <- getYearHelper
              setInput a       --cheating function, lets you combine parsers
              b <- L.decimal
-             return b
+             return (if b > 100 then b else (b+2000))
 
       
 -- getICSFile ::  MParser VCalendar

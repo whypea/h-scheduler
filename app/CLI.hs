@@ -31,6 +31,7 @@ data Commands = EditFile
               | OrderedList
               | DeadlineList
               | PrioritizedList
+              | TodoList
 
 topOptions :: O.Parser Opts
 topOptions = Opts

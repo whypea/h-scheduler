@@ -41,11 +41,12 @@ data EventCat = Ord | Dead | Prio | Todo
 data Pevent = Pevent 
     {event :: Vevent
     ,prio  :: Int 
-    ,pSET  :: (UTCTime,UTCTime) --Start/end time
+    ,pSET  :: (UTCTime,UTCTime)        --Start/end time
+    ,dur   :: NominalDiffTime          --estimated duration, relevant 
     }
 
 --Types for iCal
-data Vevent = Vevent
+data Vevent = NoEvent | Vevent
     {
     eDTstamp :: Datetime --P
     ,eUID     :: UID    --P (takes Datetime)
@@ -68,7 +69,6 @@ data DateStart = DateStart UTCTime
 instance Show (DateStart) where
     show (DateStart a) = "DTSTART=" ++ filter (dtCond) (iso8601Show a) ++ "\n"
     
-
 data DateStop = DateStop (Maybe UTCTime) 
 
 instance Show (DateStop) where
@@ -162,7 +162,7 @@ data VrRule = VrRule
 newtype Until = Until (Maybe UTCTime)
 
 instance Show Until where
-    show (Until (Just day)) = "UNTIL=" ++ filter (/= '-') (showGregorian day) ++ ";"
+    show (Until (Just a)) = "UNTIL=" ++ filter (dtCond) (iso8601Show a) ++ ";"
     show (Until Nothing)    = ""
 
 newtype Countr = Countr (Maybe Integer)
