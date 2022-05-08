@@ -19,8 +19,6 @@ import Data.Char (ord)
 import Control.Lens
 import Control.Monad
 
---UTCTime: yyyy-mm-ddThh:mm:ss
---possibility to split up
 newtype Scheduled = Scheduled {sEvent :: Pevent}
 newtype Ordered = Ordered {oEvent :: Pevent}            --Set date, eg. meetings   
 newtype Deadline = DL {dEvent :: Pevent}                --Certain date to finish by, 
@@ -47,16 +45,7 @@ toPevent s@(Vevent {..}) = Pevent s (uprio ePrio) (udts eDTStart,udte eDTEnd) (f
 
 --Can store deadline in pSET_2 , zero for unscheduled values
 utczero :: UTCTime
-utczero = UTCTime (fromGregorian 1858 11 17) (0)
- 
-toDeadline :: Pevent -> Deadline 
-toDeadline d@(Pevent {..}) = DL d{pSET = (utczero, view _2 pSET) } 
-
-toPrio :: Pevent -> Prioritized 
-toPrio p@(Pevent {..}) = Prioritized (p{pSET = (utczero, utczero) } ) 
-
-toTodo :: Pevent -> Todo
-toTodo t@(Pevent {..}) = Todo t 
+utczero = UTCTime (fromGregorian 1858 11 17) (0) 
 
 fillVeventD :: Deadline -> Deadline
 fillVeventD d = undefined
@@ -115,16 +104,16 @@ ocCheck2 ord = modify (\(l,r) -> (l ++ (orderSolve $ head colGroups), r ++ (orde
 typeDC :: Deadline -> Scheduled
 typeDC (DL devt) = Scheduled devt
 
--- dcCheck ::[Deadline] -> CState () -> CState ()
--- dcCheck dl ostate = do let sorted = sortBy (deadpCompare) (dl)
---                        s <- get
---                        sol <- dlSolve sorted s
---                        modify (\(l,r) -> (l ++ (fst $ sol), r ++ (snd $ sol))) 
---                        return ()
+-- Sort after
+dcCheck ::[Deadline] -> CState () -> CState ()
+dcCheck dl ostate = do let sorted = sortBy (deadpCompare) (dl)
+                       modify (dlSolve sorted) 
+                       return ()
 
 --Add the event to either to state (left - not possible, right - assign time)
-dlAdd :: Deadline -> ([Scheduled], [Scheduled]) -> Scheduled
-dlAdd d (l, r) = if ht == (utczero, utczero) then (Scheduled Pevent{event = NoEvent, prio = (prio $ dEvent d), pSET = ht, dur =(dur $ dEvent d)} )
+
+dlAdd :: ([Scheduled], [Scheduled]) -> Deadline -> Scheduled
+dlAdd (l, r) d = if ht == (utczero, utczero) then (Scheduled Pevent{event = NoEvent, prio = (prio $ dEvent d), pSET = pSET $ dEvent d, dur =(dur $ dEvent d)} )
                  else (Scheduled Pevent{event = NoEvent, prio = (prio $ dEvent d), pSET = ht, dur =(dur $ dEvent d)} )
     where deadline = (view _2 (pSET $ dEvent $ d))
           duration = dur $ dEvent $ d
@@ -145,13 +134,9 @@ hasTime (x:xs) dt = if hasTimetest ((pSET . sEvent $ x)^._2) ( (pSET . sEvent $ 
                     then ((pSET . sEvent $ x)^._2 , addUTCTime (fromRational . toRational $ dt) ((pSET . sEvent $ x)^._2) ) 
                     else hasTime (xs) dt
                         
-
--- dlSolve :: [Deadline] -> ([Scheduled],[Scheduled]) -> ([Scheduled],[Scheduled])
--- dlSolve dl (l, r) = undefined
-                      
-
-
--- dSolve :: []
+dlSolve :: [Deadline] -> ([Scheduled],[Scheduled]) -> ([Scheduled],[Scheduled])
+dlSolve dl (l, r) = foldl (\(a,b) x -> if ((pSET . sEvent $ x)^._1) == utczero then (a++[x], b) else (a, b++[x])) (l,r) mapped
+    where mapped = fmap (dlAdd (l, r)) dl
 
 -- --------prioSolve
 -- typePC :: Priority -> Scheduled
@@ -175,7 +160,7 @@ stdt = secondsToDiffTime
 utcdates = [(UTCTime (fg 2014 12 12) (stdt 200),UTCTime (fg 2014 12 12) (stdt 230)),
             (UTCTime (fg 2014 12 12) (stdt 190), UTCTime (fg 2014 12 12) (stdt 360)),
             (UTCTime (fg 2014 12 13) (stdt 220), UTCTime (fg 2014 12 13) (stdt 250))]
-  
+
 
 timeCompare2 :: (UTCTime,UTCTime) -> (UTCTime,UTCTime) -> Bool
 timeCompare2 p1 p2 = diffUTCTime (p1^._1) (p2^._2) < 0 && diffUTCTime (p1^._2) (p2^._1) > 0  

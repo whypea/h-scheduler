@@ -29,7 +29,7 @@ import GHC.Read (Read(readPrec))
 newtype Datetime = DT UTCTime
 
 instance Show Datetime where
-    show (DT a) = filter (dtCond) (iso8601Show a) ++ ";"  
+    show (DT a) = formatTime defaultTimeLocale "%Y%m%dTH%M%S" a    
 
 dtCond :: Char -> Bool
 dtCond = \x -> x /= '-' && x /= ':'
@@ -68,12 +68,12 @@ data DateStart = DateStart UTCTime
 
 --TODO make the correct formatting with formatTime
 instance Show (DateStart) where
-    show (DateStart a) = "DTSTART=" ++ filter (dtCond) (iso8601Show a) ++ "\n"
+    show (DateStart a) = "DTSTART=" ++ formatTime defaultTimeLocale "%Y%m%dTH%M%S" a    ++ "\n"
     
 data DateStop = DateStop (Maybe UTCTime) 
 
 instance Show (DateStop) where
-    show (DateStop (Just a)) = "DTSTOP=" ++ filter (dtCond) (iso8601Show a) ++ "\n"
+    show (DateStop (Just a)) = "DTSTOP=" ++ formatTime defaultTimeLocale "%Y%m%dTH%M%S" a    ++ "\n"
     show (DateStop (Nothing)) = ""
 
 data Desc = Desc (Maybe String)
@@ -163,7 +163,7 @@ data VrRule = VrRule
 newtype Until = Until (Maybe UTCTime)
 
 instance Show Until where
-    show (Until (Just a)) = "UNTIL=" ++ filter (dtCond) (iso8601Show a) ++ ";"
+    show (Until (Just a)) = "UNTIL=" ++ formatTime defaultTimeLocale "%Y%m%dTH%M%S" a ++ ";"
     show (Until Nothing)    = ""
 
 newtype Countr = Countr (Maybe Integer)

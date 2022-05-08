@@ -112,21 +112,27 @@ getMonthDay = MonthDay <$> (string' "MonthDay " *> getCNumType 31)
 getWeekNo :: MParser WeekNo 
 getWeekNo = WeekNo <$> (string' "WeekNo " *> getCNumType 52)
 
+----RRULES
+--
+--getWeeklyDate :: 
+
+--getMonthlyDate
+
 ----VEVENT
 
-getVevent :: MParser (Datetime, UID, EClass, DateStart, DateStop)
-getVevent =   intercalateEffect (char ' ') $ (,,,,)
+getVevent :: MParser Vevent
+getVevent =   intercalateEffect (char ' ') $ Vevent
              <$> toPermutation getDTStamp
              <*> toPermutation getUID
              <*> toPermutationWithDefault (PRIVATE) getClass
              <*> toPermutation getDateStart
              <*> toPermutationWithDefault (DateStop Nothing) getDateStop
-            --  <*> toPermutationWithDefault (Desc Nothing) getDesc
-            --  <*> toPermutationWithDefault (Duration Nothing) getDuration
-            --  <*> toPermutationWithDefault (Priority Nothing) getPrio
-            --  <*> toPermutationWithDefault (EvtSequence Nothing) getEvtSeq 
-            --  <*> toPermutationWithDefault (Transp Nothing) (Just <$> getTransp)
-            --  <*> toPermutationWithDefault (VrRule Nothing) getrRule
+             <*> toPermutationWithDefault (Desc Nothing) getDesc
+             <*> toPermutationWithDefault (Duration Nothing) getDuration
+             <*> toPermutationWithDefault (Priority Nothing) getPrio
+             <*> toPermutationWithDefault (EvtSequence Nothing) getEvtSeq 
+             <*> toPermutationWithDefault (Transp Nothing) (Just <$> getTransp)
+             <*> toPermutationWithDefault (VrRule Nothing) getrRule
 
 getDTStamp :: MParser Datetime
 getDTStamp = DT <$> getDateTime
