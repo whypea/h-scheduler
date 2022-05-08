@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies      #-}
@@ -11,14 +10,15 @@ import qualified Control.Monad.Trans.Class as Trans
 import Data.Time
 import Data.Text (Text)
 import Control.Monad.Trans.State
-import Events
+import Events hiding (Todo)
 import Control.Monad.Reader (Reader)
 import Control.Applicative (Const)
 import Data.List (nub, nubBy, sortBy, groupBy)
-import Data.IntMap
+-- import Data.IntMap
 import Data.Char (ord)
 import Control.Lens
-import Control.Monad.Except (ExceptT)
+import Control.Monad
+
 --UTCTime: yyyy-mm-ddThh:mm:ss
 --possibility to split up
 newtype Scheduled = Scheduled {sEvent :: Pevent}
@@ -26,27 +26,48 @@ newtype Ordered = Ordered {oEvent :: Pevent}            --Set date, eg. meetings
 newtype Deadline = DL {dEvent :: Pevent}                --Certain date to finish by, 
 newtype Prioritized = Prioritized {pEvent :: Pevent}    --timed tasks with a priority, flexible (maybe with )
 newtype Todo  = Todo {tEvent :: Pevent}                 --Any time, priority has lower pecedence than above
---               |Free 
 
 type CState a = State ([Scheduled], [Scheduled]) a --Conflicts/not conflicts
- --
+
+(wake,bed) = (secondsToDiffTime 32400, secondsToDiffTime 75600)
 
 toPevent :: Vevent -> Pevent 
-toPevent s@(Vevent {..}) = Pevent s (uprio ePrio) (udts eDTStart,udte eDTEnd)
+toPevent s@(Vevent {..}) = Pevent s (uprio ePrio) (udts eDTStart,udte eDTEnd) (diffUTCTime (udte eDTEnd) (udts eDTStart))
  where uprio (Priority (Just a)) = a  
        udts (DateStart a) = a
        udte (DateStop (Just a)) = a
 
+--TODO These 3 need "empty" dates, last needs an empty priority and all need to 
+--     backprop into Vevent
+
+--Can store deadline in pSET_2 
+utczero :: UTCTime
+utczero = UTCTime (fromGregorian 1858 11 17) (0)
+ 
 toDeadline :: Pevent -> Deadline 
-toDeadline = undefined
+toDeadline d@(Pevent {..}) = DL d{pSET = (utczero, view _2 pSET) } 
 
 toPrio :: Pevent -> Prioritized 
-toPrio = undefined 
+toPrio p@(Pevent {..}) = Prioritized (p{pSET = (utczero, utczero) } ) 
 
 toTodo :: Pevent -> Todo
+toTodo t@(Pevent {..}) = Todo t 
 
+fillVeventD :: Deadline -> Deadline
+fillVeventD d = undefined
+
+--Compares
 timeCompare :: Pevent -> Pevent -> Bool
 timeCompare p1 p2 = diffUTCTime ((pSET $ p1)^._1)  ((pSET $ p2)^._2) < 0 && diffUTCTime ((pSET $ p1)^._2) ((pSET $ p2)^._1) > 0  
+
+deadpCompare :: Deadline -> Deadline -> Ordering
+deadpCompare p1 p2 = compare (prio . dEvent $ p1) (prio . dEvent $ p2)
+
+priopCompare :: Prioritized -> Prioritized -> Ordering
+priopCompare p1 p2 = compare (prio . pEvent $ p1) (prio . pEvent $ p2)
+
+todopCompare :: Todo -> Todo -> Ordering
+todopCompare p1 p2 = compare (prio . tEvent $ p1) (prio . tEvent $ p2)
 
 -- ->  solve -> check and add to state -> Either for errors?   
 
@@ -68,14 +89,14 @@ ocCheck ::[Ordered] -> CState ()-> CState ()
 ocCheck ord state = if oCompare ord == 0 then modify (\(l,r) -> (l,r ++ (orderSolve ord))) else modify (\(l,r) -> (l++ (orderSolve ord),r))
 
 --Finds the n collisions and puts them in a list
-findoCollisions :: Int -> [Ordered] -> [Ordered] 
-findoCollisions 0 ords = ords
-findoCollisions n ords = [Ordered f1] ++ findoCollisions (n-1) (fmap Ordered f2)  
-    where sorted = sortBy (\p1 p2 -> compare (view _1 (pSET $ p1)) (view _1 (pSET $ p2))) (fmap oEvent ords)  
-          find (x:xs) = case timeCompare x (head xs) of
-                            True  -> (head xs, tail xs)
-                            False -> find xs
-          (f1,f2) = (find sorted) 
+-- findoCollisions :: Int -> [Ordered] -> [Ordered] 
+-- findoCollisions 0 ords = ords
+-- findoCollisions n ords = [Ordered f1] ++ findoCollisions (n-1) (fmap Ordered f2)  
+--     where sorted = sortBy (\p1 p2 -> compare (view _1 (pSET $ p1)) (view _1 (pSET $ p2))) (fmap oEvent ords)  
+--           find (x:xs) = case timeCompare x (head xs) of
+--                             True  -> (head xs, tail xs)
+--                             False -> find xs
+--           (f1,f2) = (find sorted) 
 
 --These two might invalidate the functions above 
 findoColGroups :: [Ordered] -> [[Ordered]]
@@ -89,12 +110,28 @@ ocCheck2 ord = modify (\(l,r) -> (l ++ (orderSolve $ head colGroups), r ++ (orde
 typeDC :: Deadline -> Scheduled
 typeDC (DL devt) = Scheduled devt
 
-dlSolve :: Deadline -> CState () -> CState ()
-dlSolve d ostate = do 
+-- dcCheck ::[Deadline] -> CState () -> CState ()
+-- dcCheck dl ostate = do let sorted = sortBy (deadpCompare) (dl)
+--                        s <- get
+--                        sol <- dlSolve sorted s
+--                        modify (\(l,r) -> (l ++ (fst $ sol), r ++ (snd $ sol))) 
+--                        return ()
 
+dlAdd :: Deadline -> ([Scheduled], [Scheduled]) -> Scheduled
+dlAdd d (l, r) = deadline 
+    where deadline = (view _2 (pSET $ dEvent $ d))
+          duration = dur $ dEvent $ d
+          before   = filter (\s -> deadline < (view _2 (pSET $ sEvent $ s)) ) r
+            
+-- hasTime :: [Scheduled] -> DiffTime -> Scheduled
+-- hasTime (x0:x1:xs) dt = (pSET . sEvent $ x0) (pSET . sEvent $ x1)
 
-dcCheck ::[Deadline] -> CState () -> CState ()
-dcCheck dl ostate = 
+timetype :: Scheduled -> UTCTime
+timetype x = (pSET $ sEvent $ x)^._2  
+-- dlSolve :: [Deadline] -> ([Scheduled],[Scheduled]) -> ([Scheduled],[Scheduled])
+-- dlSolve dl (l, r) = undefined
+                      
+
 
 -- dSolve :: []
 
