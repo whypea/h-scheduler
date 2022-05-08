@@ -37,12 +37,13 @@ dtCond = \x -> x /= '-' && x /= ':'
 --TODO: Maybe possibility for self-defined events?
 data EventCat = Ord | Dead | Prio | Todo 
 
---Priority and DTStart/DTEnd
+--Event as gotten from the parser
+--TODO Pevent -> Solver types -> Vevent -> Print
 data Pevent = Pevent 
-    {event :: Vevent
-    ,prio  :: Int 
-    ,pSET  :: (UTCTime,UTCTime)        --Start/end time
-    ,dur   :: NominalDiffTime          --estimated duration, relevant 
+    {event :: Vevent            --Event
+    ,prio  :: Int               --Priorrity
+    ,pSET  :: (UTCTime,UTCTime) --Start/end time
+    ,dur   :: DiffTime          --estimated duration, relevant 
     }
 
 --Types for iCal

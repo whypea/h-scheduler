@@ -191,6 +191,14 @@ getEventCat = do choice
 -- getPeventEdit :: MParser Pevent
 -- getPeventEdit = undefined
 
+-- getScheduled :: MParser Pevent
+
+-- getDeadline :: MParser Pevent 
+
+-- getPrio ::MParser Pevent 
+
+-- getTodo :: MParser Pevent
+
 getDay :: MParser DayOfWeek
 getDay = do choice 
  [ Monday    <$ string' "mon" <* many alphaNumChar

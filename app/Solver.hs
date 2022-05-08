@@ -29,10 +29,15 @@ newtype Todo  = Todo {tEvent :: Pevent}                 --Any time, priority has
 
 type CState a = State ([Scheduled], [Scheduled]) a --Conflicts/not conflicts
 
+wake :: DiffTime
+bed :: DiffTime
 (wake,bed) = (secondsToDiffTime 32400, secondsToDiffTime 75600)
 
+getDT :: UTCTime -> DiffTime
+getDT = utctDayTime
+--nominalDiffTime -> 
 toPevent :: Vevent -> Pevent 
-toPevent s@(Vevent {..}) = Pevent s (uprio ePrio) (udts eDTStart,udte eDTEnd) (diffUTCTime (udte eDTEnd) (udts eDTStart))
+toPevent s@(Vevent {..}) = Pevent s (uprio ePrio) (udts eDTStart,udte eDTEnd) (fromRational . toRational $ (diffUTCTime (udte eDTEnd) (udts eDTStart)))
  where uprio (Priority (Just a)) = a  
        udts (DateStart a) = a
        udte (DateStop (Just a)) = a
@@ -40,7 +45,7 @@ toPevent s@(Vevent {..}) = Pevent s (uprio ePrio) (udts eDTStart,udte eDTEnd) (d
 --TODO These 3 need "empty" dates, last needs an empty priority and all need to 
 --     backprop into Vevent
 
---Can store deadline in pSET_2 
+--Can store deadline in pSET_2 , zero for unscheduled values
 utczero :: UTCTime
 utczero = UTCTime (fromGregorian 1858 11 17) (0)
  
@@ -69,7 +74,7 @@ priopCompare p1 p2 = compare (prio . pEvent $ p1) (prio . pEvent $ p2)
 todopCompare :: Todo -> Todo -> Ordering
 todopCompare p1 p2 = compare (prio . tEvent $ p1) (prio . tEvent $ p2)
 
--- ->  solve -> check and add to state -> Either for errors?   
+--readers 
 
 constrSolve :: [Ordered] -> [Deadline] -> [Prioritized] -> [Todo] -> Either [Scheduled] [Scheduled]
 constrSolve = undefined
@@ -117,26 +122,36 @@ typeDC (DL devt) = Scheduled devt
 --                        modify (\(l,r) -> (l ++ (fst $ sol), r ++ (snd $ sol))) 
 --                        return ()
 
+--Add the event to either to state (left - not possible, right - assign time)
 dlAdd :: Deadline -> ([Scheduled], [Scheduled]) -> Scheduled
-dlAdd d (l, r) = deadline 
+dlAdd d (l, r) = if ht == (utczero, utczero) then (Scheduled Pevent{event = NoEvent, prio = (prio $ dEvent d), pSET = ht, dur =(dur $ dEvent d)} )
+                 else (Scheduled Pevent{event = NoEvent, prio = (prio $ dEvent d), pSET = ht, dur =(dur $ dEvent d)} )
     where deadline = (view _2 (pSET $ dEvent $ d))
           duration = dur $ dEvent $ d
-          before   = filter (\s -> deadline < (view _2 (pSET $ sEvent $ s)) ) r
-            
--- hasTime :: [Scheduled] -> DiffTime -> Scheduled
--- hasTime (x0:x1:xs) dt = (pSET . sEvent $ x0) (pSET . sEvent $ x1)
+          before   = filter (\s -> deadline < (view _2 (pSET $ sEvent $ s)) && afterwake s && beforesleep s ) r
+          afterwake s= duration + wake > getDT (view _1 (pSET $ sEvent $ s))
+          beforesleep s= duration + bed < getDT (view _2 (pSET $ sEvent $ s))
+          ht = hasTime r duration
 
-timetype :: Scheduled -> UTCTime
-timetype x = (pSET $ sEvent $ x)^._2  
+--Find an open timeslot by checking if 
+hasTimetest :: UTCTime -> UTCTime -> DiffTime -> Bool
+hasTimetest stop start dur = comp == LT || comp == EQ
+    where comp = compare (getDT stop - getDT start) dur
+
+hasTime :: [Scheduled] -> DiffTime -> (UTCTime,UTCTime) 
+hasTime [] dt = (utczero, utczero)
+hasTime [x] dt = (utczero, utczero)
+hasTime (x:xs) dt = if hasTimetest ((pSET . sEvent $ x)^._2) ( (pSET . sEvent $ (head xs))^._1) dt 
+                    then ((pSET . sEvent $ x)^._2 , addUTCTime (fromRational . toRational $ dt) ((pSET . sEvent $ x)^._2) ) 
+                    else hasTime (xs) dt
+                        
+
 -- dlSolve :: [Deadline] -> ([Scheduled],[Scheduled]) -> ([Scheduled],[Scheduled])
 -- dlSolve dl (l, r) = undefined
                       
 
 
 -- dSolve :: []
-
---binary search for a date some days before the deadline, not in the middle of the night (8-18)
--- Option for 
 
 -- --------prioSolve
 -- typePC :: Priority -> Scheduled
@@ -154,11 +169,13 @@ timetype x = (pSET $ sEvent $ x)^._2
 -- --Not quite tests
 -- curryCalendar :: ((Integer, Int), Int) -> Day
 -- curryCalendar = uncurry.uncurry $fromGregorian
+
 fg = fromGregorian
 stdt = secondsToDiffTime 
 utcdates = [(UTCTime (fg 2014 12 12) (stdt 200),UTCTime (fg 2014 12 12) (stdt 230)),
             (UTCTime (fg 2014 12 12) (stdt 190), UTCTime (fg 2014 12 12) (stdt 360)),
             (UTCTime (fg 2014 12 13) (stdt 220), UTCTime (fg 2014 12 13) (stdt 250))]
+  
 
 timeCompare2 :: (UTCTime,UTCTime) -> (UTCTime,UTCTime) -> Bool
 timeCompare2 p1 p2 = diffUTCTime (p1^._1) (p2^._2) < 0 && diffUTCTime (p1^._2) (p2^._1) > 0  
