@@ -18,20 +18,23 @@ import qualified Options.Applicative as O
 data Opts = Opts {
      filename :: String
     ,uidsuffix :: String
-    -- ,starttime :: UTCTime
     ,bfill    :: Bool
     ,verbose  :: Bool
     ,input    :: Bool 
 }
 
--- commands 
+-- TODO commands, or rewrite the whole cli section 
 
-data Commands = EditFile 
-              | CreateFile
-              | OrderedList
-              | DeadlineList
-              | PrioritizedList
-              | TodoList
+data Commands = EditFile Opts
+              | CreateFile Opts
+              | OrderedList Opts
+              | DeadlineList Opts
+              | PrioritizedList Opts
+              | TodoList Opts
+
+-- commands :: [Commands]
+-- commands = [O.command ""]
+
 
 topOptions :: O.Parser Opts
 topOptions = Opts
@@ -46,11 +49,6 @@ topOptions = Opts
          <> O.metavar "UID"
          <> O.value "@h-scheduler"
          <> O.help "Identifier for the instance" )
-    --   <*> O.option
-    --       ( O.long "Start Time" 
-    --      <> O.short 'i'
-    --      <> O.metavar "20220507"
-    --      <> O.help "Start time for the calendar" ) 
       <*> O.switch
           ( O.long "bfill"
          <> O.short 'b'
@@ -64,11 +62,9 @@ topOptions = Opts
          <> O.short 'i'
          <> O.help "Make (True) or edit (False) file")
 
-
-
 --TODO make it accept values (meaning, run commands)
 --TODO make it quit
---TODO sleep and wakeup times? (should be implied honestly) 
+ 
 cli :: IO () 
 cli = do 
     options <- O.execParser opts
@@ -79,9 +75,9 @@ cli = do
      <> O.progDesc "Produce a ics file"
      <> O.header "h-scheduler" ) 
 
-scheduler :: IO String
-scheduler = return ""
 
-
-
- 
+     --   <*> O.option
+    --       ( O.long "Start Time" 
+    --      <> O.short 'i'
+    --      <> O.metavar "20220507"
+    --      <> O.help "Start time for the calendar" ) 

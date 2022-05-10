@@ -23,7 +23,9 @@ import qualified Data.Text as T
 import Control.Lens
 import Control.Monad.Trans.State 
 import Control.Monad
+import Control.Monad.IO.Class
 import Control.Applicative.Permutations 
+
 type MParser = Parsec Void String 
 
 ---- !Helpers
@@ -75,7 +77,6 @@ getStr = Just <$> (some alphaNumChar <* eof)
 
 ---- !Parsers
 --DONE?: Put together the other parsers in a permutation, handles failures by returning "Nothing" 
---Might be defined 
 getrRule :: MParser VrRule
 getrRule =   intercalateEffect (char ' ') $ VrRule
              <$> toPermutation (getrFreq)
@@ -87,6 +88,19 @@ getrRule =   intercalateEffect (char ' ') $ VrRule
              <*> toPermutationWithDefault (MonthDay Nothing) getMonthDay
              <*> toPermutationWithDefault (YearDay Nothing) getYearDay
              <*> toPermutationWithDefault (WeekNo Nothing) getWeekNo 
+
+getrFreq :: MParser Vrfreq --List of tuples
+getrFreq = do choice 
+ [ HOURLY  <$ string' "hourly"
+ , HOURLY  <$ string' "every hour" 
+ , DAILY   <$ string' "daily"        
+ , DAILY   <$ string' "every day"        
+ , WEEKLY  <$ string' "weekly"       
+ , WEEKLY  <$ string' "every week"       
+ , MONTHLY <$ string' "monthly"      
+ , MONTHLY <$ string' "every month"      
+ , YEARLY  <$ string' "yearly"       
+ , YEARLY  <$ string' "every year"] 
 
 getByMonth :: MParser ByMonth
 getByMonth = ByMonth <$> (string' "ByMonth " *> fmap Just getMonth)
@@ -113,10 +127,10 @@ getWeekNo :: MParser WeekNo
 getWeekNo = WeekNo <$> (string' "WeekNo " *> getCNumType 52)
 
 ----RRULES
---
---getWeeklyDate :: 
-
---getMonthlyDate
+--Some day every week
+-- getWeeklyDate :: MParser VrRule
+-- getWeeklyDate =
+--getMonthlyDate ::
 
 ----VEVENT
 
@@ -127,12 +141,12 @@ getVevent =   intercalateEffect (char ' ') $ Vevent
              <*> toPermutationWithDefault (PRIVATE) getClass
              <*> toPermutation getDateStart
              <*> toPermutationWithDefault (DateStop Nothing) getDateStop
-             <*> toPermutationWithDefault (Desc Nothing) getDesc
              <*> toPermutationWithDefault (Duration Nothing) getDuration
+             <*> toPermutationWithDefault (Desc Nothing) getDesc
              <*> toPermutationWithDefault (Priority Nothing) getPrio
              <*> toPermutationWithDefault (EvtSequence Nothing) getEvtSeq 
-             <*> toPermutationWithDefault (Transp Nothing) (Just <$> getTransp)
-             <*> toPermutationWithDefault (VrRule Nothing) getrRule
+             <*> toPermutationWithDefault (Nothing) (Just <$> getTransp)
+             <*> toPermutationWithDefault (Nothing) (Just <$>getrRule)
 
 getDTStamp :: MParser Datetime
 getDTStamp = DT <$> getDateTime
@@ -188,22 +202,23 @@ getEventCat = do choice
 -- getUTCPair :: MParser (UTCTime, UTCTime)
 -- getUTCPair = (,) <$> (string' "start: " *> getDateTime ) <*>(string' "end: " *> getDateTime)
 
--- getPeventNew :: MParser Pevent 
--- getPeventNew = Pevent <$> NoEvent 
+-- getPeventNew :: MParser ParseEvent 
+-- getPeventNew = ParseEvent <$> NoEvent 
 --                <*> L.decimal 
 --                <*> getUTCPair
 --                <*> (fmap .diffTimeToPicoseconds getTimeDay) 
  
--- getPeventEdit :: MParser Pevent
+-- getPeventEdit :: MParser ParseEvent
 -- getPeventEdit = undefined
 
--- getScheduled :: MParser Pevent
+-- getScheduled :: MParser ParseEvent
+-- getScheduled = 
 
--- getDeadline :: MParser Pevent 
+-- getDeadline :: MParser ParseEvent 
 
--- getPrio ::MParser Pevent 
+-- getPrio ::MParser ParseEvent 
 
--- getTodo :: MParser Pevent
+-- getTodo :: MParser ParseEvent
 
 getDay :: MParser DayOfWeek
 getDay = do choice 
@@ -230,18 +245,7 @@ getMonth = do choice
  , 11  <$ string' "Nov" <* many alphaNumChar 
  , 12  <$ string' "Dec" <* many alphaNumChar ]
 
-getrFreq :: MParser Vrfreq --List of tuples
-getrFreq = do choice 
- [ HOURLY  <$ string' "hourly"
- , HOURLY  <$ string' "every hour" 
- , DAILY   <$ string' "daily"        
- , DAILY   <$ string' "every day"        
- , WEEKLY  <$ string' "weekly"       
- , WEEKLY  <$ string' "every week"       
- , MONTHLY <$ string' "monthly"      
- , MONTHLY <$ string' "every month"      
- , YEARLY  <$ string' "yearly"       
- , YEARLY  <$ string' "every year"]       
+      
 
 -- rfreqmap :: String -> MParser Vrfreq
 -- rfreqmap s = [fmap [HOURLY, DAILY, WEEKLY, MONTHLY, YEARLY]]   

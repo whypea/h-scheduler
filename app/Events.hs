@@ -39,7 +39,7 @@ data EventCat = Ord | Dead | Prio | Todo
 
 --Event as gotten from the parser
 --TODO Pevent -> Solver types -> Vevent -> Print
-data Pevent = Pevent 
+data ParseEvent = ParseEvent
     {event :: Vevent            --Event
     ,prio  :: Int               --Priorrity
     ,pSET  :: (UTCTime,UTCTime) --Start/end time
@@ -59,7 +59,7 @@ data Vevent = NoEvent | Vevent
     ,ePrio :: Priority     --P
     ,eSeq :: EvtSequence        --P
     ,eTimeTrans :: Maybe Transp     --TODO 
-    ,eRRule :: VrRule
+    ,eRRule :: Maybe VrRule
     }
 
 data Transp = TRANSPARENT | OPAQUE deriving (Show, Enum)
@@ -248,11 +248,6 @@ instance Show Version where
 
 newtype TZ = TZ TimeZone --offset in minutes 
 
---The "VTIMEZONE" calendar component MUST include the "TZID" 
---property and at least one definition of a "STANDARD" or "DAYLIGHT"
---sub-component.  The "STANDARD" or "DAYLIGHT" sub-component MUST
---include the "DTSTART", "TZOFFSETFROM", and "TZOFFSETTO"
---properties.
 instance Show TZ where
     show (TZ a) = show (timeZoneMinutes a) 
 
