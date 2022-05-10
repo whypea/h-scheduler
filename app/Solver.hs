@@ -11,7 +11,6 @@ import qualified Control.Monad.Trans.Class as Trans
 
 import Events hiding (Todo)
 import Control.Monad.Trans.State
-import Control.Monad.Reader (Reader)
 import Control.Applicative (Const)
 import Control.Lens
 import Control.Monad
@@ -22,20 +21,31 @@ import Data.Char (ord)
 import Data.Time
 import Data.Text (Text)
 
-newtype Scheduled = Scheduled {sEvent :: ParseEvent}
-newtype Ordered = Ordered {oEvent :: ParseEvent}            --Set date, eg. meetings   
-newtype Deadline = Deadline {dEvent :: ParseEvent}                --Certain date to finish by, 
-newtype Prioritized = Prioritized {pEvent :: ParseEvent}    --timed tasks with a priority, flexible
-newtype Todo  = Todo {tEvent :: ParseEvent}                 --Any time, priority has lower pecedence than above
+newtype Scheduled = Scheduled {sEvent :: ParseEvent} deriving (Show)
+newtype Ordered = Ordered {oEvent :: ParseEvent} deriving (Show)           --Set date, eg. meetings   
+newtype Deadline = Deadline {dEvent :: ParseEvent} deriving (Show)            --Certain date to finish by, 
+newtype Prioritized = Prioritized {pEvent :: ParseEvent} deriving (Show)    --timed tasks with a priority, flexible
+newtype Todo  = Todo {tEvent :: ParseEvent} deriving (Show)                 --Any time, priority has lower pecedence than above
 
 type CState a = State ([Scheduled], [Scheduled]) a --Conflicts/not conflicts
+
+initCstate :: CState ()
+initCstate = put ([],[])
 
 wake :: DiffTime
 bed :: DiffTime
 (wake,bed) = (secondsToDiffTime 32400, secondsToDiffTime 75600)
 
+bottom = bottom
+
 getDT :: UTCTime -> DiffTime
 getDT = utctDayTime
+
+getSEnd :: Scheduled -> UTCTime 
+getSEnd s = view _2 (pSET $ sEvent $ s)
+
+getSStart :: Scheduled -> UTCTime 
+getSStart s = view _1 (pSET $ sEvent $ s)
 
 toParseEvent :: Vevent -> ParseEvent 
 toParseEvent s@(Vevent {..}) = ParseEvent s (uprio ePrio) (udts eDTStart,udte eDTEnd) (fromRational . toRational $ (diffUTCTime (udte eDTEnd) (udts eDTStart)))
@@ -53,7 +63,7 @@ utczero = UTCTime (fromGregorian 1858 11 17) (0)
 fillVeventD :: Deadline -> Deadline
 fillVeventD d = undefined
 
---Compares
+--Compares time
 timeCompare :: ParseEvent -> ParseEvent -> Bool
 timeCompare p1 p2 = diffUTCTime ((pSET $ p1)^._1)  ((pSET $ p2)^._2) < 0 && diffUTCTime ((pSET $ p1)^._2) ((pSET $ p2)^._1) > 0  
 
@@ -71,11 +81,14 @@ hasTimetest :: UTCTime -> UTCTime -> DiffTime -> Bool
 hasTimetest stop start dur = comp == LT || comp == EQ
     where comp = compare (getDT stop - getDT start) dur
 
-
 ----SOLVERS
 constrSolve :: [Ordered] -> [Deadline] -> [Prioritized] {--> [Todo]-} -> CState ()
 constrSolve ord dl pr = do let final = pCheck pr $ dcCheck dl $ ocCheck2 ord 
                            return final ()
+
+econstrSolve :: [Ordered] -> [Deadline] -> [Prioritized] {--> [Todo]-} -> ([Scheduled],[Scheduled])
+econstrSolve ord dl pr = execState (pCheck pr $ dcCheck dl $ ocCheck2 ord) ([],[])
+
 
 ----ordSolve
 typeOC :: Ordered -> Scheduled
@@ -130,17 +143,17 @@ dlAdd (l, r) d = if ht == (utczero, utczero) then (Scheduled ParseEvent{event = 
           before        = filter (\s -> deadline < (view _2 (pSET $ sEvent $ s)) && afterwake s && beforesleep s ) r
           afterwake s   = duration + wake > getDT (view _1 (pSET $ sEvent $ s))
           beforesleep s = duration + bed < getDT (view _2 (pSET $ sEvent $ s))
-          ht            = haspTime r duration
+          ht            = hasdTime r duration
 
 --Assm. list sorted by date, hasTimetest finds a time, if it doesn't it passes. 
-hassTime :: [Scheduled] -> DiffTime -> (UTCTime,UTCTime) 
-hassTime [] dt = (utczero,utczero)
-hassTime [x] dt = if  (fromRational . toRational $ dt) + (utctDayTime ((pSET . sEvent $ x)^._2))  < bed 
+hasdTime :: [Scheduled] -> DiffTime -> (UTCTime,UTCTime) 
+hasdTime [] dt = (utczero,utczero)
+hasdTime [x] dt = if  (fromRational . toRational $ dt) + (utctDayTime ((pSET . sEvent $ x)^._2))  < bed 
                   then ((pSET . sEvent $ x)^._2 , addUTCTime (fromRational . toRational $ dt) ((pSET . sEvent $ x)^._2) )
                   else ((pSET . sEvent $ x)^._1, (pSET . sEvent $ x)^._2)
-hassTime (x:xs) dt = if hasTimetest ((pSET . sEvent $ x)^._2) ( (pSET . sEvent $ (head xs))^._1) dt 
+hasdTime (x:xs) dt = if hasTimetest ((pSET . sEvent $ x)^._2) ( (pSET . sEvent $ (head xs))^._1) dt 
                     then ((pSET . sEvent $ x)^._2 , addUTCTime (fromRational . toRational $ dt) ((pSET . sEvent $ x)^._2) ) 
-                    else hassTime (xs) dt
+                    else hasdTime (xs) dt
 --                        
 dlSolve :: [Deadline] -> ([Scheduled],[Scheduled]) -> ([Scheduled],[Scheduled])
 dlSolve dl (l, r) = foldl (\(a,b) x -> if ((pSET . sEvent $ x)^._1) == utczero then (a++[x], b) else (a, b++[x])) (l,r) mapped
@@ -185,21 +198,34 @@ utcdates = [(UTCTime (fg 2014 12 12) (stdt 200),UTCTime (fg 2014 12 12) (stdt 23
             (UTCTime (fg 2014 12 13) (stdt 220), UTCTime (fg 2014 12 13) (stdt 250))]
 
 --Test for clashing times,
---Clashing for  
+--Clashing for start, finish 
 --too close to (wake,bed) = (secondsToDiffTime 32400, secondsToDiffTime 75600)
 --
-dldates =  [Deadline ParseEvent{event = NoEvent, prio=4, pSET =(UTCTime (fg 2014 12 12) (stdt 200), UTCTime (fg 2014 12 12) (stdt 230)), dur=3000},
-            Deadline ParseEvent{event = NoEvent, prio=4 ,pSET =(UTCTime (fg 2014 12 12) (stdt 200), UTCTime (fg 2014 12 12) (stdt 230)), dur=300}
-            ]
-schdates = [Scheduled ParseEvent{event = NoEvent, prio=4, pSET=(UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)), dur=3000},
-            Scheduled ParseEvent{event = NoEvent, prio=4, pSET=(UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)), dur=3000},
-            Scheduled ParseEvent{event = NoEvent, prio=4, pSET=(UTCTime (fg 2014 12 12) (stdt 40400), UTCTime (fg 2014 12 12) (stdt 44000)), dur=3000}
-           ] 
 
+--clashing time works, but removes both dates
+-- 
+orddates :: [Ordered]
+orddates = [Ordered ParseEvent{event = NoEvent, prio=4, pSET=(UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)), dur=3000},
+            Ordered ParseEvent{event = NoEvent, prio=4, pSET=(UTCTime (fg 2014 12 12) (stdt 33600), UTCTime (fg 2014 12 12) (stdt 36400)), dur=3000},
+            Ordered ParseEvent{event = NoEvent, prio=4, pSET=(UTCTime (fg 2014 12 12) (stdt 40400), UTCTime (fg 2014 12 12) (stdt 44000)), dur=3000}
+           ] 
+--sleep seems to work, but checks for the deadline instead of the greedy chosen time
+dldates :: [Deadline]
+dldates =  [Deadline ParseEvent{event = NoEvent, prio=4, pSET =(utczero, UTCTime (fg 2014 12 13) (stdt 230)), dur=3600},
+            Deadline ParseEvent{event = NoEvent, prio=4 ,pSET =(utczero, UTCTime (fg 2014 12 13) (stdt 40400)), dur=3600},
+            Deadline ParseEvent{event = NoEvent, prio=4 ,pSET =(utczero, UTCTime (fg 2014 12 13) (stdt 75700)), dur=3600},
+            Deadline ParseEvent{event = NoEvent, prio=4 ,pSET =(utczero, UTCTime (fg 2014 12 13) (stdt 75700)), dur=3600}
+            ]
+
+priodates :: [Prioritized]
 priodates = [Prioritized ParseEvent{event = NoEvent, prio=4, pSET=(UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)), dur=3000},
             Prioritized ParseEvent{event = NoEvent, prio=4, pSET=(UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)), dur=3000},
             Prioritized ParseEvent{event = NoEvent, prio=4, pSET=(UTCTime (fg 2014 12 12) (stdt 40400), UTCTime (fg 2014 12 12) (stdt 44000)), dur=3000}
            ] 
 
-timeCompare2 :: (UTCTime,UTCTime) -> (UTCTime,UTCTime) -> Bool
-timeCompare2 p1 p2 = diffUTCTime (p1^._1) (p2^._2) < 0 && diffUTCTime (p1^._2) (p2^._1) > 0  
+schdates :: [Scheduled]
+schdates = [Scheduled ParseEvent{event = NoEvent, prio=4, pSET=(UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)), dur=3000},
+            Scheduled ParseEvent{event = NoEvent, prio=4, pSET=(UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)), dur=3000},
+            Scheduled ParseEvent{event = NoEvent, prio=4, pSET=(UTCTime (fg 2014 12 12) (stdt 40400), UTCTime (fg 2014 12 12) (stdt 44000)), dur=3000}
+           ] 
+

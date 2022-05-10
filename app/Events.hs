@@ -44,7 +44,7 @@ data ParseEvent = ParseEvent
     ,prio  :: Int               --Priorrity
     ,pSET  :: (UTCTime,UTCTime) --Start/end time
     ,dur   :: DiffTime          --estimated duration, relevant 
-    }
+    } deriving (Show)
 
 --Types for iCal
 data Vevent = NoEvent | Vevent
@@ -124,6 +124,7 @@ instance Show Duration where
 
 --TODO this is disgusting
 instance Show Vevent where
+     show NoEvent = "No Event"
      show (Vevent stamp uid eclass start (DateStop Nothing) duration desc prio seq timet rrule) =
          "BEGIN: VEVENT=" ++ "\n" ++ show stamp ++ "\n" ++ show uid ++ "\n" ++ "CLASS=" 
          ++ show eclass ++ ";" ++ show start ++ ";" ++ show duration ++ "\n" ++ "DESCRIPTION=" 
