@@ -11,7 +11,11 @@ import Data.Semigroup
 import  Text.Megaparsec
 import  Text.Megaparsec.Char
 import Data.Time
+import Data.Void
 import qualified Options.Applicative as O
+import GHC.IO.FD (stdin)
+import Data.Text.IO (getLine)
+import Control.Applicative (liftA)
 
  
 
@@ -28,12 +32,16 @@ data Opts = Opts {
 data Commands = EditFile Opts
               | CreateFile Opts
               | OrderedList Opts
-              | DeadlineList Opts
+              | DeadlineList Opts 
               | PrioritizedList Opts
               | TodoList Opts
+              | ParseCommand Opts (Maybe String)
 
 -- commands :: [Commands]
--- commands = [O.command ""]
+-- commands = [O.command ]
+
+-- parseCommand :: ParseCommand o (Maybe s)
+-- parseCommand o = 
 
 
 topOptions :: O.Parser Opts
@@ -64,11 +72,13 @@ topOptions = Opts
 
 --TODO make it accept values (meaning, run commands)
 --TODO make it quit
- 
+--
+
+
 cli :: IO () 
 cli = do 
     options <- O.execParser opts
-    return ()
+    
   where
     opts = O.info (topOptions <**> O.helper) --(<**>) :: Applicative f => f a -> f (a -> b) -> f b
       ( O.fullDesc
@@ -81,3 +91,8 @@ cli = do
     --      <> O.short 'i'
     --      <> O.metavar "20220507"
     --      <> O.help "Start time for the calendar" ) 
+
+    -- input <- Prelude.getLine
+    -- case parseMaybe getDateStop input of
+    --     Nothing -> putStrLn ""
+    --     Just (xs)-> print (xs)

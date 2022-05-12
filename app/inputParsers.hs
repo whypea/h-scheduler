@@ -8,7 +8,7 @@
 module InputParsers where
 import System.IO.Unsafe
 import Events
-
+import Solver
 -- import Control.Applicative
 import  Text.Megaparsec
 import  Text.Megaparsec.Char
@@ -70,6 +70,10 @@ nextWeekday wd now = addDays x now
 
 getStr :: MParser (Maybe String)
 getStr = Just <$> (some alphaNumChar <* eof)
+
+getDateTime :: MParser UTCTime  
+getDateTime = UTCTime <$> (choice [getISO, getDateMonth]) <*> (getTimeDay) 
+
 --TODO Fix this
 -- getStringType :: String -> MParser (Maybe a)
 -- getStringType str = do a <- string' str
@@ -88,6 +92,18 @@ getrRule =   intercalateEffect (char ' ') $ VrRule
              <*> toPermutationWithDefault (MonthDay Nothing) getMonthDay
              <*> toPermutationWithDefault (YearDay Nothing) getYearDay
              <*> toPermutationWithDefault (WeekNo Nothing) getWeekNo 
+
+getFilerRule :: MParser VrRule
+getFilerRule =   intercalateEffect (char ' ') $ VrRule
+             <$> toPermutation (getrFreq)
+             <*> toPermutationWithDefault (Until Nothing) getUntilE
+             <*> toPermutationWithDefault (Countr Nothing) getCountrE
+             <*> toPermutationWithDefault (Interval Nothing) getIntervalE
+             <*> toPermutationWithDefault (ByMonth Nothing) getByMonthE
+             <*> toPermutationWithDefault (ByDay Nothing) getByDayE
+             <*> toPermutationWithDefault (MonthDay Nothing) getMonthDayE
+             <*> toPermutationWithDefault (YearDay Nothing) getYearDayE
+             <*> toPermutationWithDefault (WeekNo Nothing) getWeekNoE
 
 getrFreq :: MParser Vrfreq --List of tuples
 getrFreq = do choice 
@@ -115,7 +131,7 @@ getUntil :: MParser Until
 getUntil = Until <$> (string' "Until " *> fmap Just getDateTime)
 
 getCountr :: MParser Countr 
-getCountr = Countr <$> (string' "Countr " *> getNumType)
+getCountr = Countr <$> ( getNumType <* string' " times")
 
 getYearDay :: MParser YearDay 
 getYearDay = YearDay <$> (string' "YearDay " *> getCNumType 365)
@@ -126,6 +142,31 @@ getMonthDay = MonthDay <$> (string' "MonthDay " *> getCNumType 31)
 getWeekNo :: MParser WeekNo 
 getWeekNo = WeekNo <$> (string' "WeekNo " *> getCNumType 52)
 
+getByMonthE :: MParser ByMonth
+getByMonthE = ByMonth <$> (string' "BYMONTH:" *> fmap Just getMonth)
+
+getByDayE :: MParser ByDay
+getByDayE = ByDay <$> (string' "BYDAY:" *> fmap Just getDay)
+
+getIntervalE :: MParser Interval 
+getIntervalE = Interval <$> (string' "INTERVAL:" *> getNumType)
+
+getUntilE :: MParser Until 
+getUntilE = Until <$> (string' "UNTIL:" *> fmap Just getDateTime)
+
+getCountrE :: MParser Countr 
+getCountrE = Countr <$> (string' "COUNT:" *> getNumType )
+
+getYearDayE :: MParser YearDay 
+getYearDayE = YearDay <$> (string' "YEARDAY:" *> getCNumType 365)
+
+getMonthDayE :: MParser MonthDay 
+getMonthDayE = MonthDay <$> (string' "MONTHDAY:" *> getCNumType 31)
+
+getWeekNoE :: MParser WeekNo 
+getWeekNoE = WeekNo <$> (string' "WEEKNO:" *> getCNumType 52)
+
+
 ----RRULES
 --Some day every week
 -- getWeeklyDate :: MParser VrRule
@@ -135,7 +176,7 @@ getWeekNo = WeekNo <$> (string' "WeekNo " *> getCNumType 52)
 ----VEVENT
 
 getVevent :: MParser Vevent
-getVevent =   intercalateEffect (char ' ') $ Vevent
+getVevent = intercalateEffect (char ' ') $ Vevent
              <$> toPermutation getDTStamp
              <*> toPermutation getUID
              <*> toPermutationWithDefault (PRIVATE) getClass
@@ -147,6 +188,21 @@ getVevent =   intercalateEffect (char ' ') $ Vevent
              <*> toPermutationWithDefault (EvtSequence Nothing) getEvtSeq 
              <*> toPermutationWithDefault (Nothing) (Just <$> getTransp)
              <*> toPermutationWithDefault (Nothing) (Just <$>getrRule)
+
+--TODO
+getFileVevent :: MParser Vevent
+getFileVevent =  intercalateEffect (char ' ') $ Vevent
+                 <$> toPermutation getDTStampE
+                 <*> toPermutation getUIDE
+                 <*> toPermutationWithDefault (PRIVATE) getClassE
+                 <*> toPermutation getDateStartE
+                 <*> toPermutationWithDefault (DateStop Nothing) getDateStopE
+                 <*> toPermutationWithDefault (Duration Nothing) getDurationE
+                 <*> toPermutationWithDefault (Desc Nothing) getDescE
+                 <*> toPermutationWithDefault (Priority Nothing) getPrioE
+                 <*> toPermutationWithDefault (EvtSequence Nothing) getEvtSeqE 
+                 <*> toPermutationWithDefault (Nothing) (Just <$> getTranspE)
+                 <*> toPermutationWithDefault (Nothing) (Just <$>getrRuleE)
 
 getDTStamp :: MParser Datetime
 getDTStamp = DT <$> getDateTime
@@ -187,20 +243,53 @@ getTransp = choice
  , OPAQUE <$ string' "Opaque"
  ]
 
-getDateTime :: MParser UTCTime  
-getDateTime = UTCTime <$> (choice [getISO, getDateMonth]) <*> (getTimeDay) 
 
-------Pevent
-getEventCat :: MParser EventCat
-getEventCat = do choice 
- [ Ord <$ string' "ordered"
- , Dead <$ string' "deadline"
- , Prio <$ string' "priority"
- , Todo <$ string' "Todo"
+getDTStampE :: MParser Datetime
+getDTStampE = DT <$> getDateTime
+
+getUIDE :: MParser UID
+getUIDE = pure (UID (makeUID :: String))
+
+getClassE :: MParser EClass
+getClassE = choice 
+ [ PUBLIC <$ string' "public"
+ , PRIVATE <$ string' "private"
+ , CONFIDENTIAL <$ string' "Confidential"
+ --, IANA <$ string' "public"
+ --, XNAME <$ string' "public"  
  ]
 
--- getUTCPair :: MParser (UTCTime, UTCTime)
--- getUTCPair = (,) <$> (string' "start: " *> getDateTime ) <*>(string' "end: " *> getDateTime)
+getDateStartE :: MParser DateStart
+getDateStartE =  DateStart <$> (string' "DTSTART:" *> getDateTime <* "\n")
+
+getDateStopE :: MParser DateStop
+getDateStopE =   DateStop <$> (string' "DTSTOP:" *> (Just <$> getDateTime) <* "\n")
+
+getDescE :: MParser Desc
+getDescE = Desc <$> (string' "DESCRIPTION:" *>  getStr <* "\n")
+
+getDurationE :: MParser Duration
+getDurationE = Duration <$> (string' "DURATION:" *> (Just <$> getTimeDay) <* "\n")
+
+getPrioE :: MParser Priority
+getPrioE = Priority <$> (string' "PRIORITY:" *> getNumType <* "\n")
+
+getEvtSeqE :: MParser EvtSequence
+getEvtSeqE = EvtSequence <$> getNumType
+
+getTranspE :: MParser Transp
+getTranspE = choice 
+ [TRANSPARENT <$ string' "Transparent"
+ , OPAQUE <$ string' "Opaque"
+ ]
+getrRuleE :: MParser VrRule
+getrRuleE = string "RRULE:" *> getrRule 
+
+------Pevent
+--How to get from interpreter
+
+getUTCPair :: MParser (UTCTime, UTCTime)
+getUTCPair = (,) <$> (string' "start: " *> getDateTime ) <*> (string' "end: " *> getDateTime)
 
 -- getPeventNew :: MParser ParseEvent 
 -- getPeventNew = ParseEvent <$> NoEvent 
@@ -211,14 +300,34 @@ getEventCat = do choice
 -- getPeventEdit :: MParser ParseEvent
 -- getPeventEdit = undefined
 
--- getScheduled :: MParser ParseEvent
--- getScheduled = 
+--Grammar: 
+getOrdered :: MParser Ordered
+getOrdered = Ordered <$> pure NoEvent 
+            <*> string' "Priority:" *> L.decimal 
+            <*> getUTCPair 
+            <*> getTimeDay
 
--- getDeadline :: MParser ParseEvent 
+-- getDeadline :: MParser Deadline
+-- getDeadline = Deadline dEvent <$> pure NoEvent 
+--             <*> string' "Priority:" *> L.decimal 
+--             <*> getUTCPair 
+--             <*> getTimeDay
 
--- getPrio ::MParser ParseEvent 
+-- getDeadlineUTC :: MParser (UTCTime, UTCTime)
+-- getDeadlineUTC = string' "Deadline:" *> (,) <$> utczero <*> getDateTime 
 
--- getTodo :: MParser ParseEvent
+-- getPrioritized :: MParser Prioritized 
+-- getPrioritized = Prioritized <$> ParseEvent <$> pure NoEvent 
+--             <*> string' "Priority:" *> L.decimal 
+--             <*> getUTCPair 
+--             <*> getTimeDay
+
+-- getTodo :: MParser Todo
+-- getTodo = Todo <$> ParseEvent <$> pure NoEvent 
+--             <*> string' "Priority:" *> L.decimal 
+--             <*> getUTCPair 
+--             <*> getTimeDay
+
 
 getDay :: MParser DayOfWeek
 getDay = do choice 
@@ -294,7 +403,7 @@ getYearHelper = takeP (Just "four") 4 <|> takeP (Just "two") 2  <* eof
 
 getYear :: MParser Integer --(>=>) might be useful
 getYear = do a <- getYearHelper
-             setInput a       --cheating function, lets you combine parsers
+             setInput a       --cheating function, lets you combine parsers. Might have weird effects though      
              b <- L.decimal
              return (if b > 100 then b else (b+2000))
 

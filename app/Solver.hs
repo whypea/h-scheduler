@@ -4,6 +4,7 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE DataKinds      #-}
 {-# LANGUAGE BlockArguments      #-}
+
 module Solver where
 
 import qualified Control.Monad.Trans.Class as Trans
@@ -36,22 +37,14 @@ wake :: DiffTime
 bed :: DiffTime
 (wake,bed) = (secondsToDiffTime 32400, secondsToDiffTime 75600)
 
-bottom = bottom
-
 getDT :: UTCTime -> DiffTime
 getDT = utctDayTime
 
-getSEnd :: Scheduled -> UTCTime 
-getSEnd s = view _2 (pSET $ sEvent $ s)
-
-getSStart :: Scheduled -> UTCTime 
-getSStart s = view _1 (pSET $ sEvent $ s)
-
-toParseEvent :: Vevent -> ParseEvent 
-toParseEvent s@(Vevent {..}) = ParseEvent s (uprio ePrio) (udts eDTStart,udte eDTEnd) (fromRational . toRational $ (diffUTCTime (udte eDTEnd) (udts eDTStart)))
- where uprio (Priority (Just a)) = a  
-       udts (DateStart a) = a
-       udte (DateStop (Just a)) = a
+-- toParseEvent :: Vevent -> ParseEvent 
+-- toParseEvent s@(Vevent {..}) = ParseEvent s (uprio ePrio) (udts eDTStart,udte eDTEnd) (fromRational . toRational $ (diffUTCTime (udte eDTEnd) (udts eDTStart)))
+--  where uprio (Priority (Just a)) = a  
+--        udts (DateStart a) = a
+--        udte (DateStop (Just a)) = a
 
 --TODO These 3 need "empty" dates, last needs an empty priority and all need to 
 --     backprop into Vevent
@@ -81,14 +74,21 @@ hasTimetest :: UTCTime -> UTCTime -> DiffTime -> Bool
 hasTimetest stop start dur = comp == LT || comp == EQ
     where comp = compare (getDT stop - getDT start) dur
 
-----SOLVERS
-constrSolve :: [Ordered] -> [Deadline] -> [Prioritized] {--> [Todo]-} -> CState ()
-constrSolve ord dl pr = do let final = pCheck pr $ dcCheck dl $ ocCheck2 ord 
-                           return final ()
+getsStop :: Scheduled -> UTCTime
+getsStop x = (pSET . sEvent $ x)^._2
 
+getsStart :: Scheduled -> UTCTime
+getsStart x = (pSET . sEvent $ x)^._1
+
+getdStart :: Deadline -> UTCTime 
+getdStart x= (pSET . dEvent $ x)^._1
+
+getdStop :: Deadline -> UTCTime 
+getdStop x= (pSET . dEvent $ x)^._2
+
+----SOLVERS
 econstrSolve :: [Ordered] -> [Deadline] -> [Prioritized] {--> [Todo]-} -> ([Scheduled],[Scheduled])
 econstrSolve ord dl pr = execState (pCheck pr $ dcCheck dl $ ocCheck2 ord) ([],[])
-
 
 ----ordSolve
 typeOC :: Ordered -> Scheduled
@@ -123,8 +123,8 @@ ocCheck2 ord = modify (\(l,r) -> (l ++ (orderSolve $ head colGroups), r ++ (orde
     where colGroups = findoColGroups ord
 
 --TODO list of times an event should repeat, for scheduled
-testRRule :: VrRule -> [(UTCTime, UTCTime)]
-testRRule vrr@(VrRule{..}) = undefined 
+-- testRRule :: VrRule -> [(UTCTime, UTCTime)]
+-- testRRule vrr@(VrRule{..}) =  
 
 -- ----dlSolve 
 
@@ -136,27 +136,27 @@ dcCheck dl ostate = do let sorted = sortBy (deadpCompare) (dl)
 
 --Add the event to either to state (left - not possible, right - assign time)
 dlAdd :: ([Scheduled], [Scheduled]) -> Deadline -> Scheduled
-dlAdd (l, r) d = if ht == (utczero, utczero) then (Scheduled ParseEvent{event = NoEvent, prio = (prio $ dEvent d), pSET = pSET $ dEvent d, dur =(dur $ dEvent d)} )
-                 else (Scheduled ParseEvent{event = NoEvent, prio = (prio $ dEvent d), pSET = ht, dur =(dur $ dEvent d)} )
-    where deadline      = (view _2 (pSET $ dEvent $ d))
+dlAdd (l, r) d = if ht == (utczero, utczero) then (Scheduled (ParseEvent NoEvent (prio $ dEvent d) (pSET $ dEvent d) (dur $ dEvent d)) )
+                 else (Scheduled (ParseEvent NoEvent (prio $ dEvent d) ht (dur $ dEvent d)) )
+    where deadline      = getdStart d
           duration      = dur $ dEvent $ d
-          before        = filter (\s -> deadline < (view _2 (pSET $ sEvent $ s)) && afterwake s && beforesleep s ) r
-          afterwake s   = duration + wake > getDT (view _1 (pSET $ sEvent $ s))
-          beforesleep s = duration + bed < getDT (view _2 (pSET $ sEvent $ s))
+          before        = filter (\s -> deadline < (getsStop s) && afterwake s && beforesleep s ) r
+          afterwake s   = duration + wake > getDT (getsStart s)
+          beforesleep s = duration + bed < getDT (getsStop s)
           ht            = hasdTime r duration
 
 --Assm. list sorted by date, hasTimetest finds a time, if it doesn't it passes. 
 hasdTime :: [Scheduled] -> DiffTime -> (UTCTime,UTCTime) 
 hasdTime [] dt = (utczero,utczero)
-hasdTime [x] dt = if  (fromRational . toRational $ dt) + (utctDayTime ((pSET . sEvent $ x)^._2))  < bed 
-                  then ((pSET . sEvent $ x)^._2 , addUTCTime (fromRational . toRational $ dt) ((pSET . sEvent $ x)^._2) )
-                  else ((pSET . sEvent $ x)^._1, (pSET . sEvent $ x)^._2)
-hasdTime (x:xs) dt = if hasTimetest ((pSET . sEvent $ x)^._2) ( (pSET . sEvent $ (head xs))^._1) dt 
-                    then ((pSET . sEvent $ x)^._2 , addUTCTime (fromRational . toRational $ dt) ((pSET . sEvent $ x)^._2) ) 
+hasdTime [x] dt = if  (fromRational . toRational $ dt) + (utctDayTime (getsStop x))  < bed 
+                  then (getsStop x , addUTCTime (fromRational . toRational $ dt) (getsStop x) )
+                  else (getsStart x, getsStop x)
+hasdTime (x:xs) dt = if hasTimetest (getsStop x) (getsStart x) dt 
+                    then (getsStop x , addUTCTime (fromRational . toRational $ dt) (getsStop x) ) 
                     else hasdTime (xs) dt
 --                        
 dlSolve :: [Deadline] -> ([Scheduled],[Scheduled]) -> ([Scheduled],[Scheduled])
-dlSolve dl (l, r) = foldl (\(a,b) x -> if ((pSET . sEvent $ x)^._1) == utczero then (a++[x], b) else (a, b++[x])) (l,r) mapped
+dlSolve dl (l, r) = foldl (\(a,b) x -> if (getsStart x == utczero) then (a++[x], b) else (a, b++[x])) (l,r) mapped
     where mapped = fmap (dlAdd (l, r)) dl
 
 ---------prioSolve
@@ -169,8 +169,8 @@ pCheck prio pstate = do let sorted = sortBy priopCompare (prio)   --modify (++ p
 haspTime :: [Scheduled] -> DiffTime -> (UTCTime,UTCTime) 
 haspTime [] dt = (utczero, utczero)
 haspTime [x] dt = (utczero, utczero)
-haspTime (x:xs) dt = if hasTimetest ((pSET . sEvent $ x)^._2) ( (pSET . sEvent $ (head xs))^._1) dt 
-                    then ((pSET . sEvent $ x)^._2 , addUTCTime (fromRational . toRational $ dt) ((pSET . sEvent $ x)^._2) ) 
+haspTime (x:xs) dt = if hasTimetest (getsStop x) (getsStart (head xs)) dt 
+                    then (getsStop x , addUTCTime (fromRational . toRational $ dt) (getsStop x) ) 
                     else haspTime (xs) dt
 
 pAdd :: ([Scheduled],[Scheduled]) -> Prioritized -> Scheduled
@@ -178,12 +178,13 @@ pAdd (l,r) p = if ht == (utczero, utczero) then (Scheduled ParseEvent{event = No
                     else (Scheduled ParseEvent{event = NoEvent, prio = (prio $ pEvent p), pSET = ht, dur =(dur $ pEvent p)} )
                     where duration      = dur $ pEvent $ p
                           before        = filter (\s -> afterwake s && beforesleep s ) r
-                          afterwake s   = duration + wake > getDT (view _1 (pSET $ sEvent $ s))
-                          beforesleep s = duration + bed < getDT (view _2 (pSET $ sEvent $ s))
+                          afterwake s   = duration + wake > getDT (getsStart s)
+                          beforesleep s = duration + bed < getDT (getsStop s)
                           ht            = haspTime r duration
-                          
+
+--Checks first agrgument to see if it has been assigned, if not     
 pSolve :: [Prioritized] -> ([Scheduled],[Scheduled]) -> ([Scheduled], [Scheduled])
-pSolve pr (l, r) = foldl (\(a, b) x -> if ((pSET . sEvent $ x)^._1) == utczero then (a++[x], b) else (a, b++[x])) (l, r) mapped
+pSolve pr (l, r) = foldl (\(a, b) x -> if getsStart x == utczero then (a++[x], b) else (a, b++[x])) (l, r) mapped
     where mapped = fmap (pAdd (l, r)) pr
 
 -- -- tdSolve :: [Todo] -> CState () -> [Scheduled]
@@ -200,21 +201,22 @@ utcdates = [(UTCTime (fg 2014 12 12) (stdt 200),UTCTime (fg 2014 12 12) (stdt 23
 --Test for clashing times,
 --Clashing for start, finish 
 --too close to (wake,bed) = (secondsToDiffTime 32400, secondsToDiffTime 75600)
---
+
 
 --clashing time works, but removes both dates
 -- 
 orddates :: [Ordered]
-orddates = [Ordered ParseEvent{event = NoEvent, prio=4, pSET=(UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)), dur=3000},
-            Ordered ParseEvent{event = NoEvent, prio=4, pSET=(UTCTime (fg 2014 12 12) (stdt 33600), UTCTime (fg 2014 12 12) (stdt 36400)), dur=3000},
-            Ordered ParseEvent{event = NoEvent, prio=4, pSET=(UTCTime (fg 2014 12 12) (stdt 40400), UTCTime (fg 2014 12 12) (stdt 44000)), dur=3000}
+orddates = [Ordered (ParseEvent NoEvent 4 (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)) 3000),
+            Ordered (ParseEvent NoEvent 4 (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)) 3000),
+            Ordered (ParseEvent NoEvent 4 (UTCTime (fg 2014 12 12) (stdt 33600), UTCTime (fg 2014 12 12) (stdt 36400)) 3000),
+            Ordered (ParseEvent NoEvent 4 (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)) 3000)
            ] 
 --sleep seems to work, but checks for the deadline instead of the greedy chosen time
 dldates :: [Deadline]
 dldates =  [Deadline ParseEvent{event = NoEvent, prio=4, pSET =(utczero, UTCTime (fg 2014 12 13) (stdt 230)), dur=3600},
             Deadline ParseEvent{event = NoEvent, prio=4 ,pSET =(utczero, UTCTime (fg 2014 12 13) (stdt 40400)), dur=3600},
             Deadline ParseEvent{event = NoEvent, prio=4 ,pSET =(utczero, UTCTime (fg 2014 12 13) (stdt 75700)), dur=3600},
-            Deadline ParseEvent{event = NoEvent, prio=4 ,pSET =(utczero, UTCTime (fg 2014 12 13) (stdt 75700)), dur=3600}
+            Deadline (ParseEvent  NoEvent 3 (UTCTime (fg 2014 12 12) (stdt 40400),UTCTime (fg 2014 12 12) (stdt 44000)) 3600)
             ]
 
 priodates :: [Prioritized]
