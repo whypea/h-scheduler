@@ -57,6 +57,9 @@ makeUTCTime day time = UTCTime (day) (time)
 getNumType :: Num a => MParser (Maybe a)
 getNumType = Just <$> L.decimal 
 
+getNumType' :: MParser Int
+getNumType' = L.decimal 
+
 getCNumType :: (Num a, Ord a) => a -> MParser (Maybe a)
 getCNumType c = Just <$> (fmap (clip c) L.decimal)
 
@@ -71,13 +74,11 @@ nextWeekday wd now = addDays x now
 getStr :: MParser (Maybe String)
 getStr = Just <$> (some alphaNumChar <* eof)
 
+getStr' :: MParser String
+getStr' = some alphaNumChar <* eof
+
 getDateTime :: MParser UTCTime  
 getDateTime = UTCTime <$> (choice [getISO, getDateMonth]) <*> (getTimeDay) 
-
---TODO Fix this
--- getStringType :: String -> MParser (Maybe a)
--- getStringType str = do a <- string' str
---                        return (Just a)
 
 ---- !Parsers
 --DONE?: Put together the other parsers in a permutation, handles failures by returning "Nothing" 
@@ -220,13 +221,13 @@ getClass = choice
  ]
 
 getDateStart :: MParser DateStart
-getDateStart =  DateStart <$> (string' "Start" *> getDateTime)
+getDateStart =  DateStart <$> (string' "Start " *> getDateTime)
 
 getDateStop :: MParser DateStop
-getDateStop =   DateStop <$> (string' "Stop" *> (Just <$> getDateTime))
+getDateStop =   DateStop <$> (string' "Stop " *> (Just <$> getDateTime))
 
 getDesc :: MParser Desc
-getDesc = Desc <$> (string' "Desc" *>  getStr)
+getDesc = Desc <$> (string' "Desc " *>  getStr)
 
 getDuration :: MParser Duration
 getDuration = Duration <$> (string' "Duration" *> (Just <$> getTimeDay))
@@ -242,7 +243,6 @@ getTransp = choice
  [TRANSPARENT <$ string' "Transparent"
  , OPAQUE <$ string' "Opaque"
  ]
-
 
 getDTStampE :: MParser Datetime
 getDTStampE = DT <$> getDateTime
@@ -300,12 +300,12 @@ getUTCPair = (,) <$> (string' "start: " *> getDateTime ) <*> (string' "end: " *>
 -- getPeventEdit :: MParser ParseEvent
 -- getPeventEdit = undefined
 
---Grammar: 
-getOrdered :: MParser Ordered
-getOrdered = Ordered <$> pure NoEvent 
-            <*> string' "Priority:" *> L.decimal 
-            <*> getUTCPair 
-            <*> getTimeDay
+--Grammar: Type; Noevent (since none is made); prio; utcpair; 
+-- getOrdered :: MParser Ordered
+-- getOrdered = Ordered <$> pure NoEvent 
+--             <*> string' "Priority:" *> L.decimal 
+--             <*> getUTCPair 
+--             <*> getTimeDay
 
 -- getDeadline :: MParser Deadline
 -- getDeadline = Deadline dEvent <$> pure NoEvent 

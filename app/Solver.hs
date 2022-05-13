@@ -104,16 +104,6 @@ oCompare ls = length ls - (length $ nubBy (\x y -> timeCompare (oEvent x) (oEven
 ocCheck ::[Ordered] -> CState () -> CState ()
 ocCheck ord state = if oCompare ord == 0 then modify (\(l,r) -> (l,r ++ (orderSolve ord))) else modify (\(l,r) -> (l++ (orderSolve ord),r))
 
---Finds the n collisions and puts them in a list
--- findoCollisions :: Int -> [Ordered] -> [Ordered] 
--- findoCollisions 0 ords = ords
--- findoCollisions n ords = [Ordered f1] ++ findoCollisions (n-1) (fmap Ordered f2)  
---     where sorted = sortBy (\p1 p2 -> compare (view _1 (pSET $ p1)) (view _1 (pSET $ p2))) (fmap oEvent ords)  
---           find (x:xs) = case timeCompare x (head xs) of
---                             True  -> (head xs, tail xs)
---                             False -> find xs
---           (f1,f2) = (find sorted) 
-
 --These two might invalidate the functions above 
 findoColGroups :: [Ordered] -> [[Ordered]]
 findoColGroups = groupBy (\o1 o2 -> timeCompare (oEvent o1) (oEvent o2)) 
@@ -211,6 +201,7 @@ orddates = [Ordered (ParseEvent NoEvent 4 (UTCTime (fg 2014 12 12) (stdt 33400),
             Ordered (ParseEvent NoEvent 4 (UTCTime (fg 2014 12 12) (stdt 33600), UTCTime (fg 2014 12 12) (stdt 36400)) 3000),
             Ordered (ParseEvent NoEvent 4 (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)) 3000)
            ] 
+
 --sleep seems to work, but checks for the deadline instead of the greedy chosen time
 dldates :: [Deadline]
 dldates =  [Deadline ParseEvent{event = NoEvent, prio=4, pSET =(utczero, UTCTime (fg 2014 12 13) (stdt 230)), dur=3600},
