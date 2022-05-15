@@ -17,7 +17,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import Data.Time
 
 import Data.Time.Format.ISO8601 ()
-import qualified Data.Text as T ( Text, pack, intersperse )
+import qualified Data.Text as T 
 import GHC.IO (unsafePerformIO)
 import Data.Data ()
 import Control.Lens ()
@@ -29,7 +29,7 @@ import GHC.Read (Read(readPrec))
 newtype Datetime = DT UTCTime
 
 instance Show Datetime where
-    show (DT a) = formatTime defaultTimeLocale "%Y%m%dTH%M%S" a    
+    show (DT a) = formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a    
 
 dtCond :: Char -> Bool
 dtCond = \x -> x /= '-' && x /= ':'
@@ -63,12 +63,12 @@ data DateStart = DateStart UTCTime
 
 --TODO make the correct formatting with formatTime
 instance Show (DateStart) where
-    show (DateStart a) = "DTSTART=" ++ formatTime defaultTimeLocale "%Y%m%dTH%M%S" a    ++ "\n"
-    
+    show (DateStart a) = "DTSTART=" ++ formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a ++ "\n"
+
 data DateStop = DateStop (Maybe UTCTime) 
 
 instance Show (DateStop) where
-    show (DateStop (Just a)) = "DTSTOP=" ++ formatTime defaultTimeLocale "%Y%m%dTH%M%S" a    ++ "\n"
+    show (DateStop (Just a)) = "DTSTOP=" ++ formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a    ++ "\n"
     show (DateStop (Nothing)) = ""
 
 data Desc = Desc (Maybe String)
@@ -106,16 +106,11 @@ instance Show Duration where
     show (Duration (Just a)) = "DURATION=" ++ show a 
     show (Duration (Nothing)) = ""
 
---TODO Format
---DurFormat
-
-
 -- instance Show Duration where 
 --     show (Duration (Just a)) = 
 
 -- concat $zipWith (++) (fmap show [eDTstamp, eUID ,eClass,eDTStart,eDescription,ePrio,eSeq,eTimeTrans,eRecur,eAlarm,eRRule])
 -- ["DATETIME","UID:", "CLASS:", "DTSTART:", "DESCRIPTION", "PRIORITY:", "SEQUENCE:", "TRANSP:", "RECUR:", "ALARM:", "RRULE:"]--TODO
-
 
 --TODO this is disgusting
 instance Show Vevent where
@@ -133,13 +128,7 @@ instance Show Vevent where
          show prio ++ "\n" ++"SEQUENCE=" ++ show seq ++ "\n" ++ "TRANSP=" ++ show timet ++ "\n" 
          ++ "RECUR=" ++ show rrule ++ "\n"
 
-newtype MT a= MT {a :: Maybe a}
-
-instance Show a => Show (MT a) where
-    show (MT (Just a)) = show a
-    show (MT Nothing) = show ""
-
-data VrRule = VrRule
+data VrRule =  NoRule | VrRule   --TODO: NoRule for testing
     {
     rFreq      :: Vrfreq       --P (Freq)
     ,rUntil    :: Until        --P (Day)
@@ -155,11 +144,21 @@ data VrRule = VrRule
 --TODO Generalise the show instances
 -- data MShow (a :: Maybe b) where
 --     ShowMaybe :: Show b => MShow a
+data Vrfreq = HOURLY | DAILY | WEEKLY | MONTHLY | YEARLY
+ deriving (Eq, Ord)
+
+instance Show Vrfreq where 
+    show (HOURLY) = "FREQ=HOURLY"
+    show (DAILY) = "FREQ=DAILY"
+    show (WEEKLY) = "FREQ=WEEKLY"
+    show (MONTHLY) = "FREQ=MONTHLY"
+    show (YEARLY) = "FREQ=YEARLY"
+
 
 newtype Until = Until (Maybe UTCTime)
 
 instance Show Until where
-    show (Until (Just a)) = "UNTIL=" ++ formatTime defaultTimeLocale "%Y%m%dTH%M%S" a ++ ";"
+    show (Until (Just a)) = "UNTIL=" ++ formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a ++ ";"
     show (Until Nothing)    = ""
 
 newtype Countr = Countr (Maybe Integer)
@@ -211,20 +210,15 @@ instance Show WeekNo where
     show (WeekNo Nothing) = ""
 
 --TODO: replace with something like intersperse 
-instance Show VrRule  where
-    show (VrRule freq until (Countr Nothing) interval mon day _ _ _) =       --
-     show freq ++ show until ++ show interval ++ show mon ++ show day
-    show (VrRule freq (Until Nothing) reoccur interval mon day _ _ _) =
-     show freq ++ show reoccur ++ show interval ++ show mon ++ show day
-    show (VrRule freq (Until Nothing) (Countr Nothing) interval mon day _ _ _) =
-     show freq  ++ show interval ++ show mon ++ show day
+instance Show VrRule where
+    show (NoRule) = "No Rule"
+    show (VrRule freq until (Countr Nothing) interval mon day md yd wn) =       --
+     show freq ++ show until ++ show interval ++ show mon ++ show day ++ show md ++ show yd ++ show wn 
+    show (VrRule freq (Until Nothing) reoccur interval mon day md yd wn) =
+     show freq ++ show reoccur ++ show interval ++ show mon ++ show day  ++ show md ++ show yd ++ show wn 
+    -- show (VrRule freq (Until Nothing) (Countr Nothing) interval mon day _ _ _) =
+    --  show freq  ++ show interval ++ show mon ++ show day
     show VrRule{..} = ""
-
-
-
---Cutting out some of the choices like "minutely" and "secondly"
-data Vrfreq = HOURLY | DAILY | WEEKLY | MONTHLY | YEARLY
- deriving (Show, Eq, Ord)
 
 data Vcalendar = Vcalendar
     {

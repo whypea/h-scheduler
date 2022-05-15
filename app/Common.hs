@@ -53,12 +53,17 @@ todopCompare p1 p2 = compare (prio . tEvent $ p1) (prio . tEvent $ p2)
 
 --Find an open timeslot by checking if stoptime and starttime are less than the duration
 hasTimetest :: UTCTime -> UTCTime -> DiffTime -> Bool
-hasTimetest stop start dur = comp == LT || comp == EQ
-    where comp = compare (getDT stop - getDT start) dur
+hasTimetest stop start dur = comp == LT -- || comp == EQ
+    where comp = compare dur (getDT stop - getDT start) 
+
+withinDay :: DiffTime -> Bool 
+withinDay x = x > wake && x < bed 
 
 --Compares time 
 timeCompare :: ParseEvent -> ParseEvent -> Bool
-timeCompare p1 p2 = diffUTCTime ((pSET $ p1)^._1)  ((pSET $ p2)^._2) < 0 && diffUTCTime ((pSET $ p1)^._2) ((pSET $ p2)^._1) > 0  
+timeCompare p1 p2 = diffUTCTime ((pSET $ p1)^._1) ((pSET $ p2)^._2) < 0 && diffUTCTime ((pSET $ p1)^._2) ((pSET $ p2)^._1) > 0 
+                    && withinDay (utctDayTime ((pSET $ p1)^._1)) && withinDay (utctDayTime ((pSET $ p2)^._1))
+                    && withinDay (utctDayTime ((pSET $ p1)^._2)) && withinDay (utctDayTime ((pSET $ p2)^._2))
 
 getsStop :: Scheduled -> UTCTime
 getsStop x = (pSET . sEvent $ x)^._2

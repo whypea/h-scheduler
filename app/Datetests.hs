@@ -47,10 +47,6 @@ scheduleddates = [Scheduled (ParseEvent NoEvent 4 (UTCTime (fg 2014 12 12) (stdt
             Scheduled (ParseEvent NoEvent 4 (UTCTime (fg 2014 12 12) (stdt 44200), UTCTime (fg 2014 12 12) (stdt 47200)) 3000) 
            ] 
 
--- vrtest = VrRule HOURLY (Until Just (UTCTime (fg 2014 12 13) (stdt 40400))) (Countr (Just 5)) (Interval (Just 2)) (ByMonth Nothing) (ByDay Nothing) (MonthDay Nothing) (YearDay Nothing) (WeekNo Nothing)
+vrruledates = (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400))
 
--- schdates :: [Scheduled]
--- schdates = [Scheduled ParseEvent{event = NoEvent, prio=4, pSET=(UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)), dur=3000},
---             Scheduled ParseEvent{event = NoEvent, prio=4, pSET=(UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)), dur=3000},
---             Scheduled ParseEvent{event = NoEvent, prio=4, pSET=(UTCTime (fg 2014 12 12) (stdt 40400), UTCTime (fg 2014 12 12) (stdt 44000)), dur=3000}
---            ] 
+datetime = (UTCTime (fg 2014 12 12) (stdt 36400), UTCTime (fg 2014 12 12) (stdt 39400))

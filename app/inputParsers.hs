@@ -79,7 +79,7 @@ getStr' :: MParser String
 getStr' = some alphaNumChar <* eof
 
 getDateTime :: MParser UTCTime  
-getDateTime = UTCTime <$> (choice [getISO, getDateMonth]) <*> (getTimeDay) 
+getDateTime = UTCTime <$> (choice [getISO, getDateMonth]) <*> (space1 *> getTimeDay) 
 
 getTimeDay :: MParser DiffTime 
 getTimeDay = do x <- getHour
@@ -100,7 +100,7 @@ getDateMonth = do month <- L.decimal
                   return (fromGregorian (gregYear unsafeCurrentTime) month day) 
 
 getISO :: MParser Day
-getISO = do year <- getYear
+getISO = do year <- getYear'
             try $ emptySingle '-' <|> space1
             month <- L.decimal
             try $ emptySingle '-' <|> space1
@@ -309,6 +309,7 @@ getTranspE = choice
  [TRANSPARENT <$ string' "Transparent"
  , OPAQUE <$ string' "Opaque"
  ]
+ 
 getrRuleE :: MParser VrRule
 getrRuleE = string "RRULE:" *> getrRule 
 
@@ -389,25 +390,25 @@ getnDay :: MParser Day
 getnDay = do day <- string' "next " *> getDay
              return (nextWeekday day  $ unsafePerformIO date)
 
--- getnMonth :: MParser Day 
--- getnMonth = do month <- string' "next " *> getMonth  
---                return (fromGregorian (gregYear unsafeCurrentTime) (month+1) (gregDay unsafeCurrentTime))
-
 getnWeek :: MParser Day
 getnWeek = do month <- string' "next week"  
               return (addDays 7 $ fromGregorian (gregYear uct) (gregMonth uct) (gregDay uct))
       where uct = unsafeCurrentTime
 
-getYearHelper :: MParser String
-getYearHelper = takeP (Just "four") 4 <|> takeP (Just "two") 2  <* eof
+-- getYearHelper :: MParser String
+-- getYearHelper = takeP (Just "four") 4 <|> takeP (Just "two") 2  <* eof
 
-getYear :: MParser Integer --(>=>) might be useful
-getYear = do a <- getYearHelper
-             setInput a       --cheating function, lets you combine parsers. Might have weird effects though      
-             b <- L.decimal
-             return (if b > 100 then b else (b+2000))
+-- getYear :: MParser Integer --(>=>) might be useful
+-- getYear = do a <- getYearHelper
+--              setInput a       --cheating function, lets you combine parsers. Might have weird effects though      
+--              b <- L.decimal
+--              return (if b > 100 then b else (b+2000))
 
-vrtest = fromMaybe ""  (parseMaybe (getrRule) "hourly Until 2014-12-12 14:15 Interval 3")
+getYear' :: MParser Integer --(>=>) might be useful
+getYear' = do year <- L.decimal
+              return (year)
+
+vrtest = fromMaybe NoRule (parseMaybe (getrRule) "Daily Until 2014-12-15 14:15 Interval 3")
 
 -- getICSFile ::  MParser VCalendar
 -- getICSFile = 
