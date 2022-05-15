@@ -6,20 +6,21 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 module Events where
-import Data.Void
-import System.IO.Unsafe
 
-import Control.Applicative
+import Data.Void ()
+import System.IO.Unsafe ()
+import Control.Applicative ()
 import Text.Megaparsec ( Parsec )
-import  Text.Megaparsec.Char
+import Text.Megaparsec.Char ()
 import qualified Text.Megaparsec.Char.Lexer as L
 
 import Data.Time
-import Data.Time.Format.ISO8601
+
+import Data.Time.Format.ISO8601 ()
 import qualified Data.Text as T ( Text, pack, intersperse )
 import GHC.IO (unsafePerformIO)
-import Data.Data
-import Control.Lens
+import Data.Data ()
+import Control.Lens ()
 import Control.Monad.Trans.State (StateT)
 import Data.Time.Calendar.Julian (DayOfYear)
 import Data.Time.Calendar.OrdinalDate (WeekOfYear)
@@ -38,20 +39,12 @@ dtCond = \x -> x /= '-' && x /= ':'
 
 --Event as gotten from the parser
 --TODO Pevent -> Solver types -> Vevent -> Print
-data ParseEvent = ParseEvent
-    {event :: Vevent            --Event
-    ,prio  :: Int               --Priority
-    ,pSET  :: (UTCTime,UTCTime) --Start/end time
-    ,dur   :: DiffTime          --estimated duration, relevant 
-    } 
 
-instance Show ParseEvent where 
-    show (ParseEvent event prio pSet dur) = show prio ++ "-" ++ show (pSet^._1) ++ "-" ++ show (pSet^._2) ++ "-" ++ show dur
 
 --Types for iCal
 data Vevent = NoEvent | Vevent
     {
-    eDTstamp :: Datetime        --P
+     eDTstamp :: Datetime        --P
     ,eUID     :: UID            --P (takes Datetime)
     ,eClass   :: EClass         --P
     ,eDTStart :: DateStart      --P
@@ -154,7 +147,7 @@ data VrRule = VrRule
     ,rInterval :: Interval     --P (Integer)
     ,rbyMonth  :: ByMonth      --P (Integer)
     ,rbyDay    :: ByDay        --P (Integer)
-    ,rbyMonthDay :: MonthDay   --P
+    ,rbyMonthDay :: MonthDay   --P (Integer)
     ,rByYearDay :: YearDay     --P (Integer)
     ,rByWeekNo :: WeekNo       --P (Integer)
     }

@@ -8,7 +8,8 @@
 module InputParsers where
 import System.IO.Unsafe
 import Events
-import Solver
+import Common
+
 -- import Control.Applicative
 import  Text.Megaparsec
 import  Text.Megaparsec.Char
@@ -19,6 +20,7 @@ import Data.Void
 import Data.Time
 import Data.Time.Calendar.MonthDay
 import qualified Data.Text as T
+import Data.Maybe
 
 import Control.Lens
 import Control.Monad.Trans.State 
@@ -26,9 +28,6 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Applicative.Permutations 
 
-type MParser = Parsec Void String 
-
----- !Helpers
 emptySingle :: (MonadParsec e s m, Token s ~ Char) => Token s -> m () --from source of space 
 emptySingle x = void $ single x
 
@@ -39,6 +38,8 @@ date :: IO Day -- :: (year,month,day)
 date = getCurrentTime >>=  return . utctDay
 
 --TODO.. (See if this can't be made safe?)
+type MParser = Parsec Void String 
+
 unsafeCurrentTime :: UTCTime
 unsafeCurrentTime = unsafePerformIO getCurrentTime 
 
@@ -79,6 +80,32 @@ getStr' = some alphaNumChar <* eof
 
 getDateTime :: MParser UTCTime  
 getDateTime = UTCTime <$> (choice [getISO, getDateMonth]) <*> (getTimeDay) 
+
+getTimeDay :: MParser DiffTime 
+getTimeDay = do x <- getHour
+                string' ":"
+                y <- getMinute
+                return(x+y)
+
+getHour :: MParser DiffTime
+getHour = ((secondsToDiffTime 3600*) <$> L.decimal)
+
+getMinute :: MParser DiffTime
+getMinute = ((secondsToDiffTime 60*) <$> L.decimal) 
+
+getDateMonth :: MParser Day
+getDateMonth = do month <- L.decimal
+                  try $ emptySingle '-' <|> space1
+                  day <- L.decimal
+                  return (fromGregorian (gregYear unsafeCurrentTime) month day) 
+
+getISO :: MParser Day
+getISO = do year <- getYear
+            try $ emptySingle '-' <|> space1
+            month <- L.decimal
+            try $ emptySingle '-' <|> space1
+            day <- L.decimal
+            return (fromGregorian year month day) --Will clip the date  
 
 ---- !Parsers
 --DONE?: Put together the other parsers in a permutation, handles failures by returning "Nothing" 
@@ -301,33 +328,34 @@ getUTCPair = (,) <$> (string' "start: " *> getDateTime ) <*> (string' "end: " *>
 -- getPeventEdit = undefined
 
 --Grammar: Type; Noevent (since none is made); prio; utcpair; 
--- getOrdered :: MParser Ordered
--- getOrdered = Ordered <$> pure NoEvent 
---             <*> string' "Priority:" *> L.decimal 
---             <*> getUTCPair 
---             <*> getTimeDay
 
--- getDeadline :: MParser Deadline
--- getDeadline = Deadline dEvent <$> pure NoEvent 
---             <*> string' "Priority:" *> L.decimal 
---             <*> getUTCPair 
---             <*> getTimeDay
+getOrdered :: MParser Ordered
+getOrdered = do prio <- string' "Priority:" *> L.decimal 
+                pair <- getUTCPair 
+                dur  <- getTimeDay
+                return(Ordered (ParseEvent NoEvent prio pair (utctDayTime(pair^._2) -  utctDayTime(pair^._1))))
 
--- getDeadlineUTC :: MParser (UTCTime, UTCTime)
--- getDeadlineUTC = string' "Deadline:" *> (,) <$> utczero <*> getDateTime 
+getDeadline :: MParser Deadline
+getDeadline = do prio <- string' "Priority:" *> L.decimal 
+                 pair <- getUTCPair 
+                 dur  <- getTimeDay
+                 return(Deadline (ParseEvent NoEvent prio pair dur))
 
--- getPrioritized :: MParser Prioritized 
--- getPrioritized = Prioritized <$> ParseEvent <$> pure NoEvent 
---             <*> string' "Priority:" *> L.decimal 
---             <*> getUTCPair 
---             <*> getTimeDay
+getDeadlineUTC :: MParser (UTCTime, UTCTime)
+getDeadlineUTC = do string' "Deadline:"            -- <$> string' "Deadline:" *> utczero <*> getDateTime 
+                    dead <- getDateTime
+                    return(utczero, dead)
 
--- getTodo :: MParser Todo
--- getTodo = Todo <$> ParseEvent <$> pure NoEvent 
---             <*> string' "Priority:" *> L.decimal 
---             <*> getUTCPair 
---             <*> getTimeDay
 
+getPrioritized :: MParser Prioritized
+getPrioritized = do prio <- string' "Priority:" *> L.decimal 
+                    dur  <- getTimeDay
+                    return (Prioritized (ParseEvent NoEvent prio (utczero,utczero) dur))
+
+getTodo :: MParser Todo
+getTodo = do prio <- string' "Priority:" *> L.decimal 
+             dur  <- getTimeDay
+             return (Todo (ParseEvent NoEvent 0 (utczero,utczero) dur))
 
 getDay :: MParser DayOfWeek
 getDay = do choice 
@@ -354,36 +382,8 @@ getMonth = do choice
  , 11  <$ string' "Nov" <* many alphaNumChar 
  , 12  <$ string' "Dec" <* many alphaNumChar ]
 
-      
-
 -- rfreqmap :: String -> MParser Vrfreq
 -- rfreqmap s = [fmap [HOURLY, DAILY, WEEKLY, MONTHLY, YEARLY]]   
-
-getTimeDay :: MParser DiffTime 
-getTimeDay = do x <- getHour
-                string' ":"
-                y <- getMinute
-                return(x+y)
-
-getHour :: MParser DiffTime
-getHour = ((secondsToDiffTime 3600*) <$> L.decimal)
-
-getMinute :: MParser DiffTime
-getMinute = ((secondsToDiffTime 60*) <$> L.decimal) 
-
-getISO :: MParser Day
-getISO = do year <- getYear
-            try $ emptySingle '-' <|> space1
-            month <- L.decimal
-            try $ emptySingle '-' <|> space1
-            day <- L.decimal
-            return (fromGregorian year month day) --Will clip the date  
-
-getDateMonth :: MParser Day
-getDateMonth = do month <- L.decimal
-                  try $ emptySingle '-' <|> space1
-                  day <- L.decimal
-                  return (fromGregorian (gregYear unsafeCurrentTime) month day) 
 
 getnDay :: MParser Day
 getnDay = do day <- string' "next " *> getDay
@@ -407,7 +407,8 @@ getYear = do a <- getYearHelper
              b <- L.decimal
              return (if b > 100 then b else (b+2000))
 
-      
+vrtest = fromMaybe ""  (parseMaybe (getrRule) "hourly Until 2014-12-12 14:15 Interval 3")
+
 -- getICSFile ::  MParser VCalendar
 -- getICSFile = 
 

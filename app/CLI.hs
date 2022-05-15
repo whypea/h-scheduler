@@ -10,6 +10,8 @@ module CLI where
 import InputParsers
 import Events
 import Files
+import Common
+
 
 import Control.Monad.Trans.State
 import Data.Void
@@ -126,7 +128,6 @@ cli = do
             str <- getLine
             print $ fromMaybe 0 (parseMaybe (getNumType') str)
         Exit -> return ()
-    cli 
         
     -- opts = O.info (topOptions <**> O.helper) 
     --   ( O.fullDesc
