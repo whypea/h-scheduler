@@ -42,6 +42,9 @@ getDT = utctDayTime
 utczero :: UTCTime
 utczero = UTCTime (fromGregorian 1858 11 17) (0) 
 
+schDateCompare :: Scheduled -> Scheduled -> Ordering
+schDateCompare p1 p2 = compare ((pSET . sEvent $ p1)^._2) ((pSET . sEvent $ p2)^._2)
+
 deadpCompare :: Deadline -> Deadline -> Ordering
 deadpCompare p1 p2 = compare (prio . dEvent $ p1) (prio . dEvent $ p2)
 
@@ -51,19 +54,22 @@ priopCompare p1 p2 = compare (prio . pEvent $ p1) (prio . pEvent $ p2)
 todopCompare :: Todo -> Todo -> Ordering
 todopCompare p1 p2 = compare (prio . tEvent $ p1) (prio . tEvent $ p2)
 
---Find an open timeslot by checking if stoptime and starttime are less than the duration
+--Find an open timeslot by checking if stoptime_last - starttime_first are less than the duration
 hasTimetest :: UTCTime -> UTCTime -> DiffTime -> Bool
-hasTimetest stop start dur = comp == LT -- || comp == EQ
-    where comp = compare dur (getDT stop - getDT start) 
+hasTimetest stop start dur = comp == LT || comp == EQ  --EQ makes it open
+    where comp = compare dur (getDT stop - getDT start)
 
 withinDay :: DiffTime -> Bool 
 withinDay x = x > wake && x < bed 
 
 --Compares time 
 timeCompare :: ParseEvent -> ParseEvent -> Bool
-timeCompare p1 p2 = diffUTCTime ((pSET $ p1)^._1) ((pSET $ p2)^._2) < 0 && diffUTCTime ((pSET $ p1)^._2) ((pSET $ p2)^._1) > 0 
+timeCompare p1 p2 =  not (diffUTCTime ((pSET $ p1)^._1) ((pSET $ p2)^._2) < 0 && diffUTCTime ((pSET $ p1)^._2) ((pSET $ p2)^._1) > 0 )
                     && withinDay (utctDayTime ((pSET $ p1)^._1)) && withinDay (utctDayTime ((pSET $ p2)^._1))
                     && withinDay (utctDayTime ((pSET $ p1)^._2)) && withinDay (utctDayTime ((pSET $ p2)^._2))
+
+dateoverlap :: ParseEvent -> ParseEvent -> Bool
+dateoverlap p1 p2 = (diffUTCTime ((pSET $ p1)^._1) ((pSET $ p2)^._2) < 0 && diffUTCTime ((pSET $ p1)^._2) ((pSET $ p2)^._1) > 0 )
 
 getsStop :: Scheduled -> UTCTime
 getsStop x = (pSET . sEvent $ x)^._2
@@ -71,11 +77,23 @@ getsStop x = (pSET . sEvent $ x)^._2
 getsStart :: Scheduled -> UTCTime
 getsStart x = (pSET . sEvent $ x)^._1
 
+getoStart :: Ordered -> UTCTime 
+getoStart x= (pSET . oEvent $ x)^._1
+
+getoStop :: Ordered -> UTCTime 
+getoStop x= (pSET . oEvent $ x)^._2
+
 getdStart :: Deadline -> UTCTime 
 getdStart x= (pSET . dEvent $ x)^._1
 
 getdStop :: Deadline -> UTCTime 
 getdStop x= (pSET . dEvent $ x)^._2
+
+getpStart :: Prioritized -> UTCTime 
+getpStart x= (pSET . pEvent $ x)^._1
+
+getpStop :: Prioritized -> UTCTime 
+getpStop x= (pSET . pEvent $ x)^._2
 
 
 
