@@ -25,7 +25,8 @@ import Control.Monad.Trans.State (StateT)
 import Data.Time.Calendar.Julian (DayOfYear)
 import Data.Time.Calendar.OrdinalDate (WeekOfYear)
 import GHC.Read (Read(readPrec))
- 
+import TextShow 
+
 newtype Datetime = DT UTCTime
 
 instance Show Datetime where
@@ -65,7 +66,14 @@ data DateStart = DateStart UTCTime
 instance Show (DateStart) where
     show (DateStart a) = "DTSTART=" ++ formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a ++ "\n"
 
+instance TextShow DateStart where 
+    showb a = fromString (show a) 
+
 data DateStop = DateStop (Maybe UTCTime) 
+
+-- instance TextShow DateStop where
+--     showb (Just a) = T.pack
+--     showb (Just)
 
 instance Show (DateStop) where
     show (DateStop (Just a)) = "DTSTOP=" ++ formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a    ++ "\n"
@@ -109,20 +117,20 @@ instance Show Duration where
 -- instance Show Duration where 
 --     show (Duration (Just a)) = 
 
--- concat $zipWith (++) (fmap show [eDTstamp, eUID ,eClass,eDTStart,eDescription,ePrio,eSeq,eTimeTrans,eRecur,eAlarm,eRRule])
+-- concat $ zipWith (++) (fmap show [eDTstamp, eUID ,eClass,eDTStart,eDescription,ePrio,eSeq,eTimeTrans,eRecur,eAlarm,eRRule])
 -- ["DATETIME","UID:", "CLASS:", "DTSTART:", "DESCRIPTION", "PRIORITY:", "SEQUENCE:", "TRANSP:", "RECUR:", "ALARM:", "RRULE:"]--TODO
 
 --TODO this is disgusting
 instance Show Vevent where
      show NoEvent = "No Event"
      show (Vevent stamp uid eclass start (DateStop Nothing) duration desc prio seq timet rrule) =
-         "BEGIN: VEVENT=" ++ "\n" ++ show stamp ++ "\n" ++ show uid ++ "\n" ++ "CLASS=" 
+         "BEGIN: VEVENT=\n" ++ show stamp ++ "\n" ++ show uid ++ "\n" ++ "CLASS=" 
          ++ show eclass ++ ";" ++ show start ++ ";" ++ show duration ++ "\n" ++ "DESCRIPTION=" 
          ++ show desc ++ "\n"  ++ show prio ++ "\n" ++ show seq ++ "\n"
          ++ "TRANSP=" ++ show timet ++ "\n" ++ "RECUR=" ++ show rrule ++ "\n" 
          
      show (Vevent stamp uid eclass start stop (Duration Nothing) desc prio seq timet rrule) =
-         "BEGIN= VEVENT=" ++ "\n" ++ "DATETIME="++ show stamp ++ "\n" ++  "UID=" ++ show uid ++ "\n" ++ "CLASS=" 
+         "BEGIN= VEVENT=\n" ++ "DATETIME="++ show stamp ++ "\n" ++  "UID=" ++ show uid ++ "\n" ++ "CLASS=" 
          ++ show eclass ++ ";" ++ "DTSTART=" ++ show start ++ ";"++ "DTEND="
          ++ show stop ++ "\n" ++ "DESCRIPTION=" ++ show desc ++ "\n" ++ "PRIORITY=" ++
          show prio ++ "\n" ++"SEQUENCE=" ++ show seq ++ "\n" ++ "TRANSP=" ++ show timet ++ "\n" 

@@ -30,7 +30,10 @@ dldates =  [Deadline (ParseEvent NoEvent 4 (utczero, UTCTime (fg 2014 12 13) (st
             Deadline (ParseEvent NoEvent 4 (utczero, UTCTime (fg 2014 12 15)  (stdt 75700)) 3600), --past sleep
             Deadline (ParseEvent  NoEvent 3 (utczero,UTCTime (fg 2014 12 12) (stdt 44000)) 3600), --same time as ordered event
             Deadline (ParseEvent NoEvent 2 (utczero,UTCTime (fg 2014 12 14) (stdt 72000)) 3600),
-            Deadline (ParseEvent NoEvent 4 (utczero,UTCTime (fg 2014 12 16) (stdt 54000)) 7200)
+            Deadline (ParseEvent NoEvent 4 (utczero,UTCTime (fg 2014 12 16) (stdt 54000)) 7200),
+            Deadline (ParseEvent NoEvent 5 (utczero, UTCTime (fg 2014 12 12)  (stdt 33000)) 3600),
+            Deadline (ParseEvent NoEvent 5 (utczero, UTCTime (fg 2014 12 12)  (stdt 22000)) 3600),
+            Deadline (ParseEvent NoEvent 4 (utczero,UTCTime (fg 2014 12 16) (stdt 54000)) 10800)
             ]
 
 priodates :: [Prioritized]

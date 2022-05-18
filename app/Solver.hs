@@ -19,7 +19,7 @@ import Control.Applicative (Const)
 import Control.Lens
 import Control.Monad
 
-import Data.List (nub, nubBy, sortBy, groupBy)
+import Data.List (nub, nubBy, sortBy, groupBy, sort)
 -- import Data.IntMap
 import Data.Char (ord)
 import Data.Text (Text)
@@ -32,31 +32,6 @@ initCstate :: CState ()
 initCstate = put ([],[])
 
 liftTime = fromRational . toRational
-
-----SOLVERS
-----MAIN SOLVER
-econstrSolve :: [Ordered] -> [Deadline] -> [Prioritized] {--> [Todo]-} -> ([Scheduled],[Scheduled]) 
-econstrSolve ord dl pr = execState (pCheck pr $ dcCheck dl $ ocCheck2 ord) ([],[])
-
-----ordSolve
-
---Finds amount of collisions in the dates
-oCompare :: [Ordered] -> Int
-oCompare ls = length ls - (length $ nubBy (\x y -> timeCompare (oEvent x) (oEvent y) ) ls) 
-
--- ocCheck ::[Ordered] -> CState () -> CState ()
--- ocCheck oord state = if oCompare ord == 0 then modify (\(l,r) -> (l,r ++ (orderSolve ord))) else modify (\(l,r) -> (l++ (orderSolve ord),r))
-
---These two might invalidate the functions above 
-findoColGroups :: [Ordered] -> [[Ordered]]
-findoColGroups = groupBy (\o1 o2 -> timeCompare (oEvent o1) (oEvent o2)) 
-
---TODO: Current functions will (should) always assign times (with the exception of clashing ordered and overdue deadline)
---      as it assigns them greedily on any available timeslots, without any higher bound. Would a higher bound or
-ocCheck2 ::[Ordered] -> CState ()
-ocCheck2 ord = modify (\(l,r) -> (l ++ (fmap retype (head colGroups)), r ++ (fmap retype (concat $ tail colGroups))))
-    where colGroups = findoColGroups ord
-          retype (Ordered oevt) =  Scheduled oevt
 
 --TODO list of times an event should repeat, for scheduled
 --TODO put this into the main solver
@@ -81,29 +56,57 @@ freqAdder (WEEKLY) s (Interval (Just n))   = UTCTime (addDays (7*n) (utctDay s))
 freqAdder (MONTHLY) s (Interval (Just n))  = UTCTime (addGregorianMonthsClip n (utctDay s)) (utctDayTime s)
 freqAdder (YEARLY)  s (Interval (Just n))  = UTCTime  (addGregorianYearsClip n (utctDay s)) (utctDayTime s)
 
+----SOLVERS
+----MAIN SOLVER
+econstrSolve :: [Ordered] -> [Deadline] -> [Prioritized] {--> [Todo]-} -> ([Scheduled],[Scheduled]) 
+econstrSolve ord dl pr = execState (pCheck pr $ dcCheck dl $ ocCheck ord) ([],[])
+
+----ordSolve
+
+--Finds amount of collisions in the dates
+oCompare :: [Ordered] -> Int
+oCompare ls = length ls - (length $ nubBy (\x y -> timeCompare (oEvent x) (oEvent y) ) ls) 
+
+ordGroups :: [Ordered] -> ([Ordered], [Ordered])
+ordGroups ordered = foldl (\(l, r) x -> if all (timeCompare $ oEvent x) (fmap oEvent r)  == True then (l,r++[x]) else (l++[x], r) ) ([], [head ordered]) (tail ordered)
+    -- where sord = sortBy (ordered)
+
+--TODO: Current functions will (should) always assign times (with the exception of clashing ordered and overdue deadline)
+--      as it assigns them greedily on any available timeslots, without any higher bound. Would a higher bound or
+ocCheck ::[Ordered] -> CState ()
+ocCheck ord = put (fmap retype (fst $ colGroups), fmap retype (snd $ colGroups) )
+    where colGroups = ordGroups ord
+          retype (Ordered oevt) =  Scheduled oevt
+
+eocCheck :: [Ordered] -> ([Scheduled], [Scheduled])
+eocCheck ord = execState (ocCheck ord) ([],[])
+
 -- Sort after priority before assigning 
 dcCheck ::[Deadline] -> CState () -> CState ()
-dcCheck dl ostate = do let sorted = sortBy (deadpCompare) (dl)
-                       modify (dlSolve sorted) 
-                       return ()
+dcCheck dl ostate = put (solved) 
+ where sorted = sortBy deadpCompare dl   
+       solved = dlSolve sorted (execState ostate ([],[]))
+
+edcCheck :: [Ordered]  -> [Deadline] -> ([Scheduled], [Scheduled])
+edcCheck ord dl = execState (dcCheck dl $ ocCheck ord) ([],[])
 
 --Should always find a spot for it, since any events before the deadline are filtered out
 --Using utczero as empty list
-hasdTime :: [Scheduled] -> DiffTime -> (UTCTime,UTCTime) 
+hasdTime :: [Scheduled] -> DiffTime -> (UTCTime,UTCTime)
 hasdTime [] dt = (utczero,utczero)
-hasdTime [x] dt = dhelper dt x
+hasdTime (x:[]) dt = dhelper dt x
 hasdTime (x:xs) dt = if hasTimetest (getsStop x) (getsStart (head xs)) dt then dhelper dt x else hasdTime (xs) dt
 
-dhelper :: DiffTime -> Scheduled -> (UTCTime, UTCTime)
-dhelper dt x = if bed < (utctDayTime $ getsStop x)+dt --if it's past bedtime, add the event in the morning
-              then (addUTCTime (liftTime (bed - wake)) (UTCTime (utctDay $ getsStop x) (bed)), addUTCTime (liftTime (bed - wake + dt)) (UTCTime (utctDay $ getsStop x) (bed)) )
-              else (getsStop x, addUTCTime (liftTime dt) (getsStop x) ) 
+--TODO Rewrite dhelper to the guarded function
+-- dhelper :: DiffTime -> Scheduled -> (UTCTime, UTCTime)
+-- dhelper dt x = if bed < (utctDayTime $ getsStop x)+dt --if it's past bedtime, add the event in the morning
+--               then (addUTCTime (liftTime (bed - wake)) (UTCTime (utctDay $ getsStop x) bed), addUTCTime (liftTime (bed - wake + dt)) (UTCTime (utctDay $ getsStop x) bed ))
+--               else (getsStop x, addUTCTime (liftTime dt) (getsStop x) ) 
 
--- dhelper' :: DiffTime -> Scheduled -> (UTCTime, UTCTime)
--- dhelper' dt x 
---     | bed < (utctDayTime $ getsStop x) + dt   = (addUTCTime (liftTime (bed - wake)) (UTCTime (utctDay $ getsStop x) (bed)), addUTCTime (liftTime (bed - wake + dt)) (UTCTime (utctDay $ getsStop x) (bed)) )
---     | wake > (utctDayTime $ getsStart x) + dt = (addUTCTime (liftTime (bed - wake)) (UTCTime (utctDay $ getsStop x) (bed)), addUTCTime (liftTime (bed - wake + dt)) (UTCTime (utctDay $ getsStop x) (bed)) )
---     | otherwise                               = (getsStop x, addUTCTime (liftTime dt) (getsStop x) )
+dhelper :: DiffTime -> Scheduled -> (UTCTime, UTCTime)
+dhelper dt x 
+    | bed < (utctDayTime $ getsStop x) + dt   = (addUTCTime (liftTime (bed - wake)) (UTCTime (utctDay $ getsStop x) (bed)), addUTCTime (liftTime (bed - wake + dt)) (UTCTime (utctDay $ getsStop x) (bed)) )
+    | otherwise                               = (getsStop x, addUTCTime (liftTime dt) (getsStop x) )
 
 --Add the event to either to state (left - not possible, right - assign time)
 dlAdd :: ([Scheduled], [Scheduled]) -> Deadline -> Scheduled
@@ -111,13 +114,14 @@ dlAdd (l, r) d = if ht == (utczero, utczero) then (Scheduled (ParseEvent NoEvent
                  else (Scheduled (ParseEvent NoEvent (prio $ dEvent d) ht (dur $ dEvent d)) )
     where deadline      = getdStop d --deadline stored in snd
           duration      = dur $ dEvent $ d 
-          before        = filter (\s -> deadline > (getsStop s)) r -- filters events deadline > end of other event
+          before        = filter (\s -> deadline > (getsStop s)) (sortBy (schDateCompare) r) -- filters events deadline > end of other event
           ht            = hasdTime before duration
-
+          
 --Assm. list sorted by date, hasTimetest finds a time, if it doesn't it passes. 
 dlSolve :: [Deadline] -> ([Scheduled],[Scheduled]) -> ([Scheduled],[Scheduled])
 dlSolve dl (l, r) = foldl (\(a,b) x -> condition (a,b) x) (l,r) dl
-    where condition (a,b) x= if (getsStart (dlAdd (a,b) x) == utczero) then (a++[(dlAdd (a,b) x)], b) else (a, b++[(dlAdd (a,b) x)])
+    where condition (a,b) x = if (getsStart (adder (a,b) x) == utczero) then (a++[(adder (a,b) x)], b) else (a, b++[(adder (a,b) x)])
+          adder (d,f) y = dlAdd (d,f) y 
 
 dlSolvet :: [Deadline]
     -> ([Scheduled], [Scheduled]) -> [([Scheduled], [Scheduled])]
@@ -127,34 +131,52 @@ dlSolvet dl (l, r) = scanl (\(a,b) x -> condition (a,b) x) (l,r) dl
 ---------prioSolve
 
 pCheck :: [Prioritized] -> CState () -> CState ()
-pCheck prio pstate = do let sorted = sortBy priopCompare (prio)   --modify (++ prioSolve prio)
-                        modify (pSolve sorted)
-                        return ()
+pCheck prio dlstate = put (solved)    --modify (++ prioSolve prio)
+    where sorted = sortBy priopCompare (prio)
+          solved = pSolve sorted (execState dlstate ([],[])) 
 
 haspTime :: [Scheduled] -> DiffTime -> (UTCTime,UTCTime) 
 haspTime [] dt = (utczero,utczero)
 haspTime [x] dt = dhelper dt x
-haspTime (x:xs) dt = if hasTimetest (getsStop x) (getsStart (head xs)) dt then dhelper dt x else hasdTime (xs) dt
+haspTime (x:xs) dt = if hasTimetest (getsStop x) (getsStart (head xs)) dt then dhelper dt x else haspTime (xs) dt
+
+phelper :: DiffTime -> Scheduled -> (UTCTime, UTCTime)
+phelper dt x = if bed < (utctDayTime $ getsStop x)+dt --if it's past bedtime, add the event in the morning
+               then (addUTCTime (liftTime (bed - wake)) (UTCTime (utctDay $ getsStop x) (bed)), addUTCTime (liftTime (bed - wake + dt)) (UTCTime (utctDay $ getsStop x) (bed)) )
+               else (getsStop x, addUTCTime (liftTime dt) (getsStop x) ) 
 
 pAdd :: ([Scheduled],[Scheduled]) -> Prioritized -> Scheduled
-pAdd (l,r) p = if ht == (utczero, utczero) then (Scheduled (ParseEvent NoEvent (prio $ pEvent p) (pSET $ pEvent p) (dur $ pEvent p)) )
-                    else (Scheduled (ParseEvent NoEvent (prio $ pEvent p) ht (dur $ pEvent p)) )
+pAdd (l,r) p = (Scheduled (ParseEvent NoEvent (prio $ pEvent p) giventime (dur $ pEvent p)) )
                     where duration      = dur $ pEvent $ p
-                        --   before        = filter (\s -> afterwake s && beforesleep s ) r
-                        --   afterwake s   = duration + wake > getDT (getsStart s)
-                        --   beforesleep s = duration + bed < getDT (getsStop s)
-                          ht            = haspTime r duration
+                          giventime     = haspTime r duration
 
---Checks first agrgument to see if it has been assigned, if not     
+--Just adds everything in turn    
 pSolve :: [Prioritized] -> ([Scheduled],[Scheduled]) -> ([Scheduled], [Scheduled])
-pSolve pr (l, r) = foldl (\(a,b) x -> if (getsStart (pAdd (a,b) x) == utczero) then (a++[(pAdd (a,b) x)], b) else (a, b++[(pAdd (a,b) x)])) (l,r) pr
+pSolve pr (w, s) = foldl (\(l, r) x -> (l, r ++ [pAdd (l, r) x])) (w, s) pr  
 
-    -- where mapped = fmap (pAdd (l, r)) pr
+----todoSolve
+tdCheck :: [Todo] -> CState () -> CState ()
+tdCheck td pstate = put (solved) 
+    where sorted = sortBy todopCompare (td)
+          solved = tdSolve sorted (execState pstate ([],[]))
 
----- tdSolve :: [Todo] -> CState () -> [Scheduled]
----- tdSolve todos = undefined
+hastdTime :: [Scheduled] -> DiffTime -> (UTCTime,UTCTime) 
+hastdTime [] dt = (utczero,utczero)
+hastdTime [x] dt = thelper dt x
+hastdTime (x:xs) dt = if hasTimetest (getsStop x) (getsStart (head xs)) dt then thelper dt x else hastdTime (xs) dt
 
---Test for clashing times,
---Clashing for start, finish 
---too close to (wake,bed) = (secondsToDiffTime 32400, secondsToDiffTime 75600)
+thelper :: DiffTime -> Scheduled -> (UTCTime, UTCTime)
+thelper dt x = if bed < (utctDayTime $ getsStop x)+dt --if it's past bedtime, add the event in the morning
+              then (addUTCTime (liftTime (bed - wake)) (UTCTime (utctDay $ getsStop x) (bed)), addUTCTime (liftTime (bed - wake + dt)) (UTCTime (utctDay $ getsStop x) (bed)) )
+              else (getsStop x, addUTCTime (liftTime dt) (getsStop x) ) 
 
+tdAdd :: ([Scheduled], [Scheduled]) -> Todo -> Scheduled
+tdAdd (l, r) td =  (Scheduled (ParseEvent NoEvent (prio $ tEvent td) giventime (dur $ tEvent td)) )
+                    where duration      = dur $ tEvent $ td
+                          giventime     = hastdTime r duration 
+
+tdSolve :: [Todo] -> ([Scheduled], [Scheduled]) ->  ([Scheduled], [Scheduled])
+tdSolve todos (w, s) = foldl (\(l, r) x -> (l, r ++ [tdAdd (l, r) x])) (w, s) todos  
+
+stateToSols :: ([Scheduled], [Scheduled]) ->  ([String], [String])
+stateToSols = over both (fmap show)
