@@ -79,7 +79,7 @@ getStr' :: MParser String
 getStr' = some alphaNumChar <* eof
 
 getDateTime :: MParser UTCTime  
-getDateTime = UTCTime <$> (choice [getISO, getDateMonth]) <*> (space1 *> getTimeDay) 
+getDateTime = UTCTime <$> (choice [getISO, getDateMonth,getnDay,getnWeek]) <*> (space1 *> getTimeDay) 
 
 getTimeDay :: MParser DiffTime 
 getTimeDay = do x <- getHour
@@ -356,7 +356,7 @@ getPrioritized = do prio <- string' "Priority:" *> L.decimal
 getTodo :: MParser Todo
 getTodo = do prio <- string' "Priority:" *> L.decimal 
              dur  <- getTimeDay
-             return (Todo (ParseEvent NoEvent 0 (utczero,utczero) dur))
+             return (Todo (ParseEvent NoEvent prio (utczero,utczero) dur))
 
 getDay :: MParser DayOfWeek
 getDay = do choice 

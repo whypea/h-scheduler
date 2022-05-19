@@ -22,8 +22,9 @@ import Control.Monad
 import Data.List (nub, nubBy, sortBy, groupBy, sort)
 -- import Data.IntMap
 import Data.Char (ord)
-import Data.Text (Text)
+-- import Data.Text
 import Data.Time
+
 
 
 type CState a = State ([Scheduled], [Scheduled]) a --Conflicts/not conflicts
@@ -72,7 +73,7 @@ ordGroups ordered = foldl (\(l, r) x -> if all (timeCompare $ oEvent x) (fmap oE
     -- where sord = sortBy (ordered)
 
 --TODO: Current functions will (should) always assign times (with the exception of clashing ordered and overdue deadline)
---      as it assigns them greedily on any available timeslots, without any higher bound. Would a higher bound or
+--      as it assigns them greedily on any available timeslots, without any higher bound. 
 ocCheck ::[Ordered] -> CState ()
 ocCheck ord = put (fmap retype (fst $ colGroups), fmap retype (snd $ colGroups) )
     where colGroups = ordGroups ord
@@ -178,5 +179,8 @@ tdAdd (l, r) td =  (Scheduled (ParseEvent NoEvent (prio $ tEvent td) giventime (
 tdSolve :: [Todo] -> ([Scheduled], [Scheduled]) ->  ([Scheduled], [Scheduled])
 tdSolve todos (w, s) = foldl (\(l, r) x -> (l, r ++ [tdAdd (l, r) x])) (w, s) todos  
 
+--check this
 stateToSols :: ([Scheduled], [Scheduled]) ->  ([String], [String])
 stateToSols = over both (fmap show)
+
+stateToEvent :: ([Scheduled], [Scheduled]) -> MParser Vevent

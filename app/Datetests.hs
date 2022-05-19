@@ -42,6 +42,13 @@ priodates = [Prioritized (ParseEvent NoEvent 3 (utczero, utczero) 3000),
             Prioritized (ParseEvent NoEvent 4 (utczero, utczero) 3000)
            ] 
 
+tddates :: [Prioritized]
+tddates = [Prioritized (ParseEvent NoEvent 3 (utczero, utczero) 3000),
+           Prioritized (ParseEvent NoEvent 3 (utczero, utczero) 2500),
+           Prioritized (ParseEvent NoEvent 5 (utczero, utczero) 5000),
+           Prioritized (ParseEvent NoEvent 4 (utczero, utczero) 3000)
+           ] 
+
 --same as ordered but put in this list for convenience s
 scheduleddates :: [Scheduled]
 scheduleddates = [Scheduled (ParseEvent NoEvent 4 (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)) 3000),

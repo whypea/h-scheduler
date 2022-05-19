@@ -25,12 +25,7 @@ import Control.Monad.Trans.State (StateT)
 import Data.Time.Calendar.Julian (DayOfYear)
 import Data.Time.Calendar.OrdinalDate (WeekOfYear)
 import GHC.Read (Read(readPrec))
-import TextShow 
-
-newtype Datetime = DT UTCTime
-
-instance Show Datetime where
-    show (DT a) = formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a    
+import TextShow
 
 dtCond :: Char -> Bool
 dtCond = \x -> x /= '-' && x /= ':'
@@ -58,7 +53,23 @@ data Vevent = NoEvent | Vevent
     ,eRRule :: Maybe VrRule     --P
     } 
 
+newtype Datetime = DT UTCTime
+
+instance Show Datetime where
+    show (DT a) = formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a
+
+instance TextShow Datetime where 
+    showb a =  fromString (show a)
+
+newtype UID = UID String deriving (Show)
+
+instance TextShow UID where
+    showb a = fromString (show a)  
+
 data Transp = TRANSPARENT | OPAQUE deriving (Show, Enum)
+
+instance TextShow Transp where
+    showb a = showb (show a)
 
 data DateStart = DateStart UTCTime 
 
@@ -71,13 +82,12 @@ instance TextShow DateStart where
 
 data DateStop = DateStop (Maybe UTCTime) 
 
--- instance TextShow DateStop where
---     showb (Just a) = T.pack
---     showb (Just)
-
 instance Show (DateStop) where
     show (DateStop (Just a)) = "DTSTOP=" ++ formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a    ++ "\n"
     show (DateStop (Nothing)) = ""
+
+instance TextShow DateStop where
+    showb a = fromString (show a)  
 
 data Desc = Desc (Maybe String)
 
@@ -85,16 +95,20 @@ instance Show (Desc) where
     show (Desc (Just a)) = "DESCRIPTION= " ++ show a ++ "\n"
     show (Desc (Nothing)) = ""
 
+instance TextShow Desc where
+    showb a = fromString (show a)  
+
 data EClass = PUBLIC | PRIVATE | CONFIDENTIAL | IANA String | XNAME String 
 
 instance Show (EClass) where 
-    show PUBLIC = "PUBLIC"
-    show PRIVATE = "PRIVATE"
-    show CONFIDENTIAL = "CONFIDENTIAL"
+    show PUBLIC = "CLASS=PUBLIC"
+    show PRIVATE = "CLASS=PRIVATE"
+    show CONFIDENTIAL = "CLASS=CONFIDENTIAL"
     show (IANA a) = "IANA" ++ show a
     show (XNAME a) = "XNAME" ++ show a 
 
-newtype UID = UID String deriving (Show)
+instance TextShow EClass where
+    showb a = fromString (show a)  
 
 data Priority = Priority (Maybe Int) 
 
@@ -102,17 +116,26 @@ instance Show Priority where
     show (Priority (Just a)) = "PRIORITY=" ++ show a ++ "\n"
     show (Priority Nothing) = "" 
 
+instance TextShow Priority where
+    showb a = fromString (show a)  
+
 data EvtSequence = EvtSequence (Maybe Int)
 
 instance Show EvtSequence where 
     show (EvtSequence (Just a)) = "SEQUENCE=" ++ show a
     show (EvtSequence (Nothing)) = ""
 
+instance TextShow EvtSequence where
+    showb a = fromString (show a)  
+
 data Duration = Duration (Maybe DiffTime)
     
 instance Show Duration where
     show (Duration (Just a)) = "DURATION=" ++ show a 
     show (Duration (Nothing)) = ""
+
+instance TextShow Duration where
+    showb a = fromString (show a)  
 
 -- instance Show Duration where 
 --     show (Duration (Just a)) = 
@@ -135,6 +158,12 @@ instance Show Vevent where
          ++ show stop ++ "\n" ++ "DESCRIPTION=" ++ show desc ++ "\n" ++ "PRIORITY=" ++
          show prio ++ "\n" ++"SEQUENCE=" ++ show seq ++ "\n" ++ "TRANSP=" ++ show timet ++ "\n" 
          ++ "RECUR=" ++ show rrule ++ "\n"
+
+instance TextShow Vevent where
+    showb (Vevent stamp uid eclass start (DateStop Nothing) duration desc prio seq timet rrule) = showb stamp <> showb uid <> showb eclass<> showb start 
+                                                                                                 <> showb (DateStop Nothing) <> showb duration <> showb desc 
+                                                                                                 <> showb prio <> showb seq  <> showb timet <> showb (fromString $ show rrule) 
+                                                                                                
 
 data VrRule =  NoRule | VrRule   --TODO: NoRule for testing
     {
