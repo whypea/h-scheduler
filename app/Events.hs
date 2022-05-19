@@ -92,7 +92,7 @@ instance TextShow DateStop where
 data Desc = Desc (Maybe String)
 
 instance Show (Desc) where
-    show (Desc (Just a)) = "DESCRIPTION= " ++ show a ++ "\n"
+    show (Desc (Just a)) = "DESCRIPTION=" ++ show a ++ "\n"
     show (Desc (Nothing)) = ""
 
 instance TextShow Desc where
@@ -163,7 +163,9 @@ instance TextShow Vevent where
     showb (Vevent stamp uid eclass start (DateStop Nothing) duration desc prio seq timet rrule) = showb stamp <> showb uid <> showb eclass<> showb start 
                                                                                                  <> showb (DateStop Nothing) <> showb duration <> showb desc 
                                                                                                  <> showb prio <> showb seq  <> showb timet <> showb (fromString $ show rrule) 
-                                                                                                
+    showb (Vevent stamp uid eclass start stop (Duration Nothing) desc prio seq timet rrule) = showb stamp <> showb uid <> showb eclass<> showb start 
+                                                                                                 <> showb (DateStop Nothing) <> showb (Duration Nothing) <> showb desc 
+                                                                                                 <> showb prio <> showb seq  <> showb timet <> showb (fromString $ show rrule)                                                                                            
 
 data VrRule =  NoRule | VrRule   --TODO: NoRule for testing
     {

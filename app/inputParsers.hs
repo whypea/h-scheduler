@@ -21,6 +21,7 @@ import Data.Time
 import Data.Time.Calendar.MonthDay
 import qualified Data.Text as T
 import Data.Maybe
+import Data.List
 
 import Control.Lens
 import Control.Monad.Trans.State 
@@ -198,7 +199,8 @@ getWeekNoE = WeekNo <$> (string' "WEEKNO:" *> getCNumType 52)
 ----RRULES
 --Some day every week
 -- getWeeklyDate :: MParser VrRule
--- getWeeklyDate =
+-- getWeeklyDate = do a <- string' "every " *> getDay
+                   
 --getMonthlyDate ::
 
 ----VEVENT
@@ -286,6 +288,11 @@ getClassE = choice
  --, XNAME <$ string' "public"  
  ]
 
+--TODO: getDateTime in this format "formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a", use this for the parser below
+
+-- getDateTimeE :: MParser UTCTime
+-- getDateTimeE = UTCTime <$> getCNumType <*> getCNumType <*> getCNumType <*> (char '*') <*> 
+
 getDateStartE :: MParser DateStart
 getDateStartE =  DateStart <$> (string' "DTSTART:" *> getDateTime <* "\n")
 
@@ -330,33 +337,45 @@ getUTCPair = (,) <$> (string' "start: " *> getDateTime ) <*> (string' "end: " *>
 
 --Grammar: Type; Noevent (since none is made); prio; utcpair; 
 
-getOrdered :: MParser Ordered
-getOrdered = do prio <- string' "Priority:" *> L.decimal 
-                pair <- getUTCPair 
-                dur  <- getTimeDay
-                return(Ordered (ParseEvent NoEvent prio pair (utctDayTime(pair^._2) -  utctDayTime(pair^._1))))
-
-getDeadline :: MParser Deadline
-getDeadline = do prio <- string' "Priority:" *> L.decimal 
-                 pair <- getUTCPair 
-                 dur  <- getTimeDay
-                 return(Deadline (ParseEvent NoEvent prio pair dur))
-
 getDeadlineUTC :: MParser (UTCTime, UTCTime)
-getDeadlineUTC = do string' "Deadline:"            -- <$> string' "Deadline:" *> utczero <*> getDateTime 
-                    dead <- getDateTime
+getDeadlineUTC = do string' "Deadline: "            -- <$> string' "Deadline:" *> utczero <*> getDateTime 
+                    dead <- (space1 *> getDateTime)
+                    desc <- (space1 *> getDesc)
                     return(utczero, dead)
 
+getOrdered :: MParser Ordered
+getOrdered = do prio <- string' "Priority: " *> L.decimal 
+                pair <- (space1 *> getUTCPair) 
+                desc <- (space1 *> getDesc)
+                return(Ordered (ParseEvent desc prio pair (utctDayTime(pair^._2) -  utctDayTime(pair^._1))))
+
+getDeadline :: MParser Deadline
+getDeadline = do prio <- string' "Priority: " *> L.decimal 
+                 pair <- (space1 *>  getUTCPair)
+                 dur  <- (space1 *> getTimeDay)
+                 desc <- (space1 *> getDesc) 
+                 return(Deadline (ParseEvent desc prio pair dur))
 
 getPrioritized :: MParser Prioritized
-getPrioritized = do prio <- string' "Priority:" *> L.decimal 
-                    dur  <- getTimeDay
-                    return (Prioritized (ParseEvent NoEvent prio (utczero,utczero) dur))
+getPrioritized = do prio <- string' "Priority: " *> L.decimal 
+                    desc <- (space1 *> getDesc)
+                    dur  <- (space1 *> getTimeDay)
+                    return (Prioritized (ParseEvent desc prio (utczero,utczero) dur))
 
 getTodo :: MParser Todo
-getTodo = do prio <- string' "Priority:" *> L.decimal 
-             dur  <- getTimeDay
-             return (Todo (ParseEvent NoEvent prio (utczero,utczero) dur))
+getTodo = do prio <- string' "Priority:" *> L.decimal
+             desc <- (space1 *> getDesc)
+             dur  <- (space1 *> getTimeDay)
+             return (Todo (ParseEvent desc prio (utczero,utczero) dur))
+
+-- schToVevent :: Scheduled -> Vevent 
+-- schToVevent sch = parseMaybe getVevent "" 
+-- intersperse " " $ concat $ zipWith (++) ["Desc ","Start ","Stop ", "Prio "] [(desc . sEvent) sch, getsStart sch, getsStop sch, (prio . sEvent) sch] 
+
+stateToEvent :: ([Scheduled], [Scheduled]) -> [Vevent]
+stateToEvent (l, r) = fmap schToVevent r
+
+-- eventsToCalendar :: [Vevent] -> VCalendar 
 
 getDay :: MParser DayOfWeek
 getDay = do choice 
@@ -395,19 +414,13 @@ getnWeek = do month <- string' "next week"
               return (addDays 7 $ fromGregorian (gregYear uct) (gregMonth uct) (gregDay uct))
       where uct = unsafeCurrentTime
 
--- getYearHelper :: MParser String
--- getYearHelper = takeP (Just "four") 4 <|> takeP (Just "two") 2  <* eof
-
--- getYear :: MParser Integer --(>=>) might be useful
--- getYear = do a <- getYearHelper
---              setInput a       --cheating function, lets you combine parsers. Might have weird effects though      
---              b <- L.decimal
---              return (if b > 100 then b else (b+2000))
-
 getYear' :: MParser Integer --(>=>) might be useful
-getYear' = do year <- L.decimal
+getYear' = do year <- iterate 4 
               return (year)
 
+
+
+--Here to not cause a dependency cycle
 vrtest = fromMaybe NoRule (parseMaybe (getrRule) "Daily Until 2014-12-15 14:15 Interval 3")
 
 -- getICSFile ::  MParser VCalendar
