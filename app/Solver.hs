@@ -56,7 +56,7 @@ freqAdder (WEEKLY) s (Interval (Just n))   = UTCTime (addDays (7*n) (utctDay s))
 freqAdder (MONTHLY) s (Interval (Just n))  = UTCTime (addGregorianMonthsClip n (utctDay s)) (utctDayTime s)
 freqAdder (YEARLY)  s (Interval (Just n))  = UTCTime  (addGregorianYearsClip n (utctDay s)) (utctDayTime s)
 
---TODO Could be rewritten 
+--TODO Could be rewritten to return the date
 freqChecker :: (UTCTime, UTCTime) -> [(UTCTime, UTCTime)] -> Bool
 freqChecker t rlist = all (== True) $ map (timeoverlap t) rlist
 

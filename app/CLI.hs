@@ -32,11 +32,6 @@ import Text.Megaparsec (parseMaybe)
 import InputParsers (getStr)
 import Data.Maybe (fromMaybe)
 
- 
--- TODO commands, or rewrite the whole cli section 
---TODO make it accept values (meaning, run commands)
---TODO make it quit
-
 data Opts = Opts {
      filename :: String
     ,uidsuffix :: String
@@ -47,12 +42,12 @@ data Opts = Opts {
 } 
     deriving Show 
 
-data ActualCommands = EditFile (IO Handle)  
-              | CreateFile (IO Handle)  
-              | OrderedList (Maybe Ordered)  
-              | DeadlineList (Maybe Deadline)  
-              | PrioritizedList (Maybe Prioritized)  
-              | TodoList (Maybe Todo)   
+data ActualCommands = EditFile (IO (Maybe Handle))  
+              | CreateFile (IO Handle) 
+              | OrderedList (Maybe Ordered)   
+              | DeadlineList (Maybe Deadline) 
+              | PrioritizedList (Maybe Prioritized)   
+              | TodoList (Maybe Todo) 
 
 data Commands = ParseString (Maybe String)
               | ParseNum (Maybe Int)
@@ -74,8 +69,8 @@ command' label description parser =
 createFile :: ActualCommands 
 createFile = CreateFile $ makeICS "name"
 
--- editFile :: ActualCommands
--- editFile = 
+editFile :: ActualCommands
+editFile = EditFile $ editICS ""
 
 orderedlist :: ActualCommands
 orderedlist = OrderedList $ parseMaybe (getOrdered) ""   
@@ -88,7 +83,6 @@ priolist = PrioritizedList $ parseMaybe (getPrioritized) ""
 
 todolist :: ActualCommands
 todolist = TodoList $ parseMaybe (getTodo) ""
- 
 
 actCommands :: O.Parser ActualCommands
 actCommands =  O.subparser 
@@ -100,6 +94,7 @@ actCommands =  O.subparser
 -- actCommandsasA = asA actCommands 
 
 --Options are a parser (permutation)
+--TODO how to actually read the options
 topOptions :: O.Parser Opts
 topOptions = Opts
       <$> O.strOption
@@ -135,17 +130,18 @@ commandoptParser = runA $ proc () -> do
                        cmds <- asA actCommands -< ()
                        A O.helper -< ACO cmds opts      --makes the 
 
+--TODO Actual control structure with options, not just 
 cli :: IO () 
 cli = do 
-    go <- O.execParser (O.info actCommands (O.fullDesc <> O.progDesc "Description")) 
+    go <- O.execParser (O.info commandoptParser (O.fullDesc <> O.progDesc "Description")) 
     case go of 
-        OrderedList a-> do
+        ACO (OrderedList a) _ -> do
             print (a)
-        DeadlineList  a-> do
+        ACO (PrioritizedList a) _ -> do
             print (a)
-        PrioritizedList  a-> do
+        ACO (DeadlineList a) _ -> do
             print (a)
-        TodoList a-> do
+        ACO (TodoList a) _ -> do
             print (a)
     return ()
 

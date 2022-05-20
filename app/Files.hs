@@ -28,9 +28,9 @@ makeICS name = openFile (name ++ ".ics") WriteMode
 writeVCalendar :: Handle -> Vcalendar -> IO ()
 writeVCalendar hdl cal = hPutStrLn hdl (show cal)
 
-doPrintTest :: String -> IO (Maybe Handle) 
-doPrintTest name = do dfe <- doesFileExist (name ++ ".ics") 
-                      if dfe 
+editICS :: String -> IO (Maybe Handle) 
+editICS name = do dfe <- doesFileExist (name ++ ".ics") 
+                  if dfe 
                           then do h <- openFile (name ++ ".ics") ReadWriteMode
                                   writeVCalendar h testCal
                                   return (Just h)

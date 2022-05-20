@@ -45,15 +45,15 @@ tddates :: [Prioritized]
 tddates = [Prioritized (ParseEvent ("td") 3 (utczero, utczero) 3000 ),
            Prioritized (ParseEvent ("td1") 3 (utczero, utczero) 2500 ),
            Prioritized (ParseEvent ("td2") 5 (utczero, utczero) 5000 ),
-           Prioritized (ParseEvent ("td3") 4 (utczero, utczero) 3000 )
+           Prioritized (ParseEvent ("td3") 4 (utczero, utczero) 3000)
            ] 
 
 --same as ordered but put in this list for convenience s
 scheduleddates :: [Scheduled]
-scheduleddates = [Scheduled (ParseEvent ("sch") 4 (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)) 3000 None),
-            Scheduled (ParseEvent ("sch1") 4 (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)) 3000 None),
-            Scheduled (ParseEvent ("sch2") 4 (UTCTime (fg 2014 12 12) (stdt 72100), UTCTime (fg 2014 12 12) (stdt 75700)) 3000 None), 
-            Scheduled (ParseEvent ("sch3") 4 (UTCTime (fg 2014 12 12) (stdt 44200), UTCTime (fg 2014 12 12) (stdt 47200)) 3000 None) 
+scheduleddates = [Scheduled (ParseEvent ("sch") 4 (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)) 3000),
+            Scheduled (ParseEvent ("sch1") 4 (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)) 3000),
+            Scheduled (ParseEvent ("sch2") 4 (UTCTime (fg 2014 12 12) (stdt 72100), UTCTime (fg 2014 12 12) (stdt 75700)) 3000), 
+            Scheduled (ParseEvent ("sch3") 4 (UTCTime (fg 2014 12 12) (stdt 44200), UTCTime (fg 2014 12 12) (stdt 47200)) 3000) 
            ] 
 
 vrruledates = (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400))
