@@ -15,20 +15,37 @@ import Data.Void
 import Control.Lens
 
 data ParseEvent = ParseEvent
-    {event :: Vevent            --Event
+    {desc :: String               --Event
     ,prio  :: Int               --Priority
     ,pSET  :: (UTCTime,UTCTime) --Start/end time
-    ,dur   :: DiffTime          --estimated duration, relevant 
+    ,dur   :: DiffTime          --estimated duration, relevant
+    --,rule  :: ParserRule 
     } 
+data WithRule a = WRule {event :: a, rule :: Maybe VrRule}
+
+newtype Scheduled = Scheduled {sEvent :: ParseEvent} 
+newtype Ordered = Ordered {oEvent :: ParseEvent}             --Set date, eg. meetings   
+newtype Deadline = Deadline {dEvent :: ParseEvent}           --Certain date to finish by, 
+newtype Prioritized = Prioritized {pEvent :: ParseEvent}     --timed tasks with a priority, flexible
+newtype Todo  = Todo {tEvent :: ParseEvent}                  --Any time, priority has lower pecedence than above
 
 instance Show ParseEvent where 
-    show (ParseEvent event prio pSet dur) = show prio ++ "-" ++ show (pSet^._1) ++ "-" ++ show (pSet^._2) ++ "-" ++ show dur
+    show (ParseEvent event prio pSet dur) = show prio ++ "-" ++ show (pSet^._1) ++ "-" ++ show (pSet^._2) ++ "-" ++ show dur -- ++ show (pget $ rule)
 
-newtype Scheduled = Scheduled {sEvent :: ParseEvent} deriving (Show)
-newtype Ordered = Ordered {oEvent :: ParseEvent} deriving (Show)           --Set date, eg. meetings   
-newtype Deadline = Deadline {dEvent :: ParseEvent} deriving (Show)            --Certain date to finish by, 
-newtype Prioritized = Prioritized {pEvent :: ParseEvent} deriving (Show)    --timed tasks with a priority, flexible
-newtype Todo  = Todo {tEvent :: ParseEvent} deriving (Show)                 --Any time, priority has lower pecedence than above
+instance Show Scheduled where
+    show (Scheduled s) = show s
+
+instance Show Ordered where
+    show (Ordered s) = show s
+
+instance Show Deadline where
+    show (Deadline s) = show s
+
+instance Show Prioritized where
+    show (Prioritized s) = show s
+
+instance Show Todo where
+    show (Todo s) = show s
 
 -----FROM SOlVER
 wake :: DiffTime
@@ -64,12 +81,15 @@ withinDay x = x > wake && x < bed
 
 --Compares time 
 timeCompare :: ParseEvent -> ParseEvent -> Bool
-timeCompare p1 p2 =  not (diffUTCTime ((pSET $ p1)^._1) ((pSET $ p2)^._2) < 0 && diffUTCTime ((pSET $ p1)^._2) ((pSET $ p2)^._1) > 0 )
-                    && withinDay (utctDayTime ((pSET $ p1)^._1)) && withinDay (utctDayTime ((pSET $ p2)^._1))
-                    && withinDay (utctDayTime ((pSET $ p1)^._2)) && withinDay (utctDayTime ((pSET $ p2)^._2))
+timeCompare p1 p2 =  not (dateoverlap p1 p2) --not overlapping
+                    && withinDay (utctDayTime ((pSET $ p1)^._1)) && withinDay (utctDayTime ((pSET $ p2)^._1)) --first event inside of day
+                    && withinDay (utctDayTime ((pSET $ p1)^._2)) && withinDay (utctDayTime ((pSET $ p2)^._2)) --second event inside of day
 
 dateoverlap :: ParseEvent -> ParseEvent -> Bool
 dateoverlap p1 p2 = (diffUTCTime ((pSET $ p1)^._1) ((pSET $ p2)^._2) < 0 && diffUTCTime ((pSET $ p1)^._2) ((pSET $ p2)^._1) > 0 )
+
+timeoverlap:: (UTCTime, UTCTime) -> (UTCTime, UTCTime) -> Bool
+timeoverlap (t1, t2) (c1, c2) = diffUTCTime t1 c2 < 0 && diffUTCTime t2 c1 > 0 
 
 getsStop :: Scheduled -> UTCTime
 getsStop x = (pSET . sEvent $ x)^._2

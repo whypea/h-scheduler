@@ -183,6 +183,7 @@ data VrRule =  NoRule | VrRule   --TODO: NoRule for testing
 --TODO Generalise the show instances
 -- data MShow (a :: Maybe b) where
 --     ShowMaybe :: Show b => MShow a
+
 data Vrfreq = HOURLY | DAILY | WEEKLY | MONTHLY | YEARLY
  deriving (Eq, Ord)
 
@@ -261,12 +262,20 @@ instance Show VrRule where
 
 data Vcalendar = Vcalendar
     {
-    cProdId       :: String   --TODO needs a generator 
+    cProdId       :: ProdID String  
     , cVersion    :: Version
     , cScale      :: Gregorian
     , cTimeZones  :: TZ 
     , cEvents     :: [Vevent]
     }
+
+data ProdID a = Prod a
+
+-- instance Show a => Show (ProdID a) where
+--     show (Prod a) = show a ++ "//a haskell scheduler//EN"
+
+instance Show (ProdID a) where
+    show (Prod a) = "INF329 //a haskell scheduler//EN"
 
 data Gregorian = GREGORIAN deriving (Show, Read, Enum)
 
@@ -281,8 +290,8 @@ instance Show TZ where
     show (TZ a) = show (timeZoneMinutes a) 
 
 instance Show Vcalendar where
-    show (Vcalendar cProdId version scale tz events) =
-     "BEGIN:VCALENDAR\n" ++ "VERSION="
+    show (Vcalendar prodid version scale tz events) =
+     "BEGIN:VCALENDAR\n" ++ show prodid ++ "VERSION="
      ++ show version ++ "\n" ++ "SCALE=" ++ show scale ++ "\n" 
      ++ "TIMEZONE="++ show tz ++ "\n" ++ "EVENTS="++ printList events
 
@@ -292,7 +301,7 @@ printList (x:xs) = show x ++ printList xs
 
 --printers
 
---TODO Change this to an option passed down from CLI
+--TODO Change this to an option passed down from CLI (Reader get)
 uidID :: [Char]
 uidID = "@h-scheduler"
 

@@ -38,7 +38,6 @@ makeUID = foldr1 (++) [filter dtCond (show $ DT $ unsafePerformIO getCurrentTime
 date :: IO Day -- :: (year,month,day)
 date = getCurrentTime >>=  return . utctDay
 
---TODO.. (See if this can't be made safe?)
 type MParser = Parsec Void String 
 
 unsafeCurrentTime :: UTCTime
@@ -219,7 +218,7 @@ getVevent = intercalateEffect (char ' ') $ Vevent
              <*> toPermutationWithDefault (Nothing) (Just <$> getTransp)
              <*> toPermutationWithDefault (Nothing) (Just <$>getrRule)
 
---TODO
+--TODO Event sequence?
 getFileVevent :: MParser Vevent
 getFileVevent =  intercalateEffect (char ' ') $ Vevent
                  <$> toPermutation getDTStampE
@@ -288,7 +287,7 @@ getClassE = choice
  --, XNAME <$ string' "public"  
  ]
 
---TODO: getDateTime in this format "formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a", use this for the parser below
+--TODO: getDateTime from this format "formatTime defaultTimeLocale "%YYYY%mm%ddT%HH%MM%SS" a", use this for the parser below
 
 -- getDateTimeE :: MParser UTCTime
 -- getDateTimeE = UTCTime <$> getCNumType <*> getCNumType <*> getCNumType <*> (char '*') <*> 
@@ -326,15 +325,6 @@ getrRuleE = string "RRULE:" *> getrRule
 getUTCPair :: MParser (UTCTime, UTCTime)
 getUTCPair = (,) <$> (string' "start: " *> getDateTime ) <*> (string' "end: " *> getDateTime)
 
--- getPeventNew :: MParser ParseEvent 
--- getPeventNew = ParseEvent <$> NoEvent 
---                <*> L.decimal 
---                <*> getUTCPair
---                <*> (fmap .diffTimeToPicoseconds getTimeDay) 
- 
--- getPeventEdit :: MParser ParseEvent
--- getPeventEdit = undefined
-
 --Grammar: Type; Noevent (since none is made); prio; utcpair; 
 
 getDeadlineUTC :: MParser (UTCTime, UTCTime)
@@ -368,14 +358,16 @@ getTodo = do prio <- string' "Priority:" *> L.decimal
              dur  <- (space1 *> getTimeDay)
              return (Todo (ParseEvent desc prio (utczero,utczero) dur))
 
--- schToVevent :: Scheduled -> Vevent 
--- schToVevent sch = parseMaybe getVevent "" 
--- intersperse " " $ concat $ zipWith (++) ["Desc ","Start ","Stop ", "Prio "] [(desc . sEvent) sch, getsStart sch, getsStop sch, (prio . sEvent) sch] 
+--
+schToVevent :: Scheduled -> Vevent 
+schToVevent sch = parseMaybe getVevent "" 
+ intersperse " " $ concat $ zipWith (++) ["Desc ","Start ","Stop ", "Prio "] [(desc . sEvent) sch, show $ getsStart sch, show $ getsStop sch, (prio . sEvent) sch] 
 
 stateToEvent :: ([Scheduled], [Scheduled]) -> [Vevent]
 stateToEvent (l, r) = fmap schToVevent r
 
--- eventsToCalendar :: [Vevent] -> VCalendar 
+eventsToCalendar :: [Vevent] -> Vcalendar
+eventsToCalendar evts = Vcalendar (Prod "") Version Gregorian TZ evts
 
 getDay :: MParser DayOfWeek
 getDay = do choice 
@@ -402,9 +394,6 @@ getMonth = do choice
  , 11  <$ string' "Nov" <* many alphaNumChar 
  , 12  <$ string' "Dec" <* many alphaNumChar ]
 
--- rfreqmap :: String -> MParser Vrfreq
--- rfreqmap s = [fmap [HOURLY, DAILY, WEEKLY, MONTHLY, YEARLY]]   
-
 getnDay :: MParser Day
 getnDay = do day <- string' "next " *> getDay
              return (nextWeekday day  $ unsafePerformIO date)
@@ -414,11 +403,14 @@ getnWeek = do month <- string' "next week"
               return (addDays 7 $ fromGregorian (gregYear uct) (gregMonth uct) (gregDay uct))
       where uct = unsafeCurrentTime
 
-getYear' :: MParser Integer --(>=>) might be useful
-getYear' = do year <- iterate 4 
+getYear' :: MParser Integer 
+getYear' = do year <- L.decimal 
               return (year)
 
 
+getYear :: MParser Integer --(>=>) might be useful
+getYear = do year <- iterate 4 digitChar
+             return (Integer year)
 
 --Here to not cause a dependency cycle
 vrtest = fromMaybe NoRule (parseMaybe (getrRule) "Daily Until 2014-12-15 14:15 Interval 3")

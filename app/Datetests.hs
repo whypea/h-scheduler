@@ -17,44 +17,43 @@ utcdates = [(UTCTime (fg 2014 12 12) (stdt 200),UTCTime (fg 2014 12 12) (stdt 23
 
 --clashing time works, but removes both dates
 orddates :: [Ordered]
-orddates = [Ordered (ParseEvent NoEvent 4 (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)) 3000),
-            Ordered (ParseEvent NoEvent 4 (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)) 3000),
-            Ordered (ParseEvent NoEvent 4 (UTCTime (fg 2014 12 12) (stdt 72100), UTCTime (fg 2014 12 12) (stdt 75700)) 3000), 
-            Ordered (ParseEvent NoEvent 4 (UTCTime (fg 2014 12 12) (stdt 44200), UTCTime (fg 2014 12 12) (stdt 47200)) 3000) 
+orddates = [Ordered (ParseEvent ("ord") 4 (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)) 3000 ),
+            Ordered (ParseEvent ("ord1") 4 (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)) 3000 ),
+            Ordered (ParseEvent ("ord2") 4 (UTCTime (fg 2014 12 12) (stdt 72100), UTCTime (fg 2014 12 12) (stdt 75700)) 3000 ), 
+            Ordered (ParseEvent ("ord3") 4 (UTCTime (fg 2014 12 12) (stdt 44200), UTCTime (fg 2014 12 12) (stdt 47200)) 3000 ) 
            ] 
 
---sleep seems to work, but checks for the deadline instead of the greedy chosen time
 dldates :: [Deadline]
-dldates =  [Deadline (ParseEvent NoEvent 4 (utczero, UTCTime (fg 2014 12 13) (stdt 230)) 3600), --before sleep
-            Deadline (ParseEvent NoEvent 4 (utczero, UTCTime (fg 2014 12 13) (stdt 40400)) 3600), --asserting
-            Deadline (ParseEvent NoEvent 4 (utczero, UTCTime (fg 2014 12 15)  (stdt 75700)) 3600), --past sleep
-            Deadline (ParseEvent  NoEvent 3 (utczero,UTCTime (fg 2014 12 12) (stdt 44000)) 3600), --same time as ordered event
-            Deadline (ParseEvent NoEvent 2 (utczero,UTCTime (fg 2014 12 14) (stdt 72000)) 3600),
-            Deadline (ParseEvent NoEvent 4 (utczero,UTCTime (fg 2014 12 16) (stdt 54000)) 7200),
-            Deadline (ParseEvent NoEvent 5 (utczero, UTCTime (fg 2014 12 12)  (stdt 33000)) 3600),
-            Deadline (ParseEvent NoEvent 5 (utczero, UTCTime (fg 2014 12 12)  (stdt 22000)) 3600),
-            Deadline (ParseEvent NoEvent 4 (utczero,UTCTime (fg 2014 12 16) (stdt 54000)) 10800)
+dldates =  [Deadline (ParseEvent ("dead") 4 (utczero, UTCTime (fg 2014 12 13) (stdt 230)) 3600 ), --before sleep
+            Deadline (ParseEvent ("dead1") 4 (utczero, UTCTime (fg 2014 12 13) (stdt 40400)) 3600 ), --asserting
+            Deadline (ParseEvent ("dead2") 4 (utczero, UTCTime (fg 2014 12 15)  (stdt 75700)) 3600 ), --past sleep
+            Deadline (ParseEvent  ("dead3") 3 (utczero,UTCTime (fg 2014 12 12) (stdt 44000)) 3600 ), --same time as ordered event
+            Deadline (ParseEvent ("dead4") 2 (utczero,UTCTime (fg 2014 12 14) (stdt 72000)) 3600 ),
+            Deadline (ParseEvent ("dead5") 4 (utczero,UTCTime (fg 2014 12 16) (stdt 54000)) 7200 ),
+            Deadline (ParseEvent ("dead6") 5 (utczero, UTCTime (fg 2014 12 12)  (stdt 33000)) 3600 ),
+            Deadline (ParseEvent ("dead7") 5 (utczero, UTCTime (fg 2014 12 12)  (stdt 22000)) 3600 ),
+            Deadline (ParseEvent ("dead8") 4 (utczero,UTCTime (fg 2014 12 16) (stdt 54000)) 10800 )
             ]
 
 priodates :: [Prioritized]
-priodates = [Prioritized (ParseEvent NoEvent 3 (utczero, utczero) 3000),
-            Prioritized (ParseEvent NoEvent 5 (utczero, utczero) 5000),
-            Prioritized (ParseEvent NoEvent 4 (utczero, utczero) 3000)
+priodates = [Prioritized (ParseEvent ("prio") 3 (utczero, utczero) 3000 ),
+            Prioritized (ParseEvent ("prio1") 5 (utczero, utczero) 5000 ),
+            Prioritized (ParseEvent ("prio2") 4 (utczero, utczero) 3000 )
            ] 
 
 tddates :: [Prioritized]
-tddates = [Prioritized (ParseEvent NoEvent 3 (utczero, utczero) 3000),
-           Prioritized (ParseEvent NoEvent 3 (utczero, utczero) 2500),
-           Prioritized (ParseEvent NoEvent 5 (utczero, utczero) 5000),
-           Prioritized (ParseEvent NoEvent 4 (utczero, utczero) 3000)
+tddates = [Prioritized (ParseEvent ("td") 3 (utczero, utczero) 3000 ),
+           Prioritized (ParseEvent ("td1") 3 (utczero, utczero) 2500 ),
+           Prioritized (ParseEvent ("td2") 5 (utczero, utczero) 5000 ),
+           Prioritized (ParseEvent ("td3") 4 (utczero, utczero) 3000 )
            ] 
 
 --same as ordered but put in this list for convenience s
 scheduleddates :: [Scheduled]
-scheduleddates = [Scheduled (ParseEvent NoEvent 4 (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)) 3000),
-            Scheduled (ParseEvent NoEvent 4 (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)) 3000),
-            Scheduled (ParseEvent NoEvent 4 (UTCTime (fg 2014 12 12) (stdt 72100), UTCTime (fg 2014 12 12) (stdt 75700)) 3000), 
-            Scheduled (ParseEvent NoEvent 4 (UTCTime (fg 2014 12 12) (stdt 44200), UTCTime (fg 2014 12 12) (stdt 47200)) 3000) 
+scheduleddates = [Scheduled (ParseEvent ("sch") 4 (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)) 3000 None),
+            Scheduled (ParseEvent ("sch1") 4 (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)) 3000 None),
+            Scheduled (ParseEvent ("sch2") 4 (UTCTime (fg 2014 12 12) (stdt 72100), UTCTime (fg 2014 12 12) (stdt 75700)) 3000 None), 
+            Scheduled (ParseEvent ("sch3") 4 (UTCTime (fg 2014 12 12) (stdt 44200), UTCTime (fg 2014 12 12) (stdt 47200)) 3000 None) 
            ] 
 
 vrruledates = (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400))

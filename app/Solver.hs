@@ -25,9 +25,8 @@ import Data.Char (ord)
 -- import Data.Text
 import Data.Time
 
-
-
 type CState a = State ([Scheduled], [Scheduled]) a --Conflicts/not conflicts
+data RecurR = Recur [(UTCTime, UTCTime)]
 
 initCstate :: CState ()
 initCstate = put ([],[])
@@ -57,10 +56,14 @@ freqAdder (WEEKLY) s (Interval (Just n))   = UTCTime (addDays (7*n) (utctDay s))
 freqAdder (MONTHLY) s (Interval (Just n))  = UTCTime (addGregorianMonthsClip n (utctDay s)) (utctDayTime s)
 freqAdder (YEARLY)  s (Interval (Just n))  = UTCTime  (addGregorianYearsClip n (utctDay s)) (utctDayTime s)
 
+--TODO Could be rewritten 
+freqChecker :: (UTCTime, UTCTime) -> [(UTCTime, UTCTime)] -> Bool
+freqChecker t rlist = all (== True) $ map (timeoverlap t) rlist
+
 ----SOLVERS
 ----MAIN SOLVER
-econstrSolve :: [Ordered] -> [Deadline] -> [Prioritized] {--> [Todo]-} -> ([Scheduled],[Scheduled]) 
-econstrSolve ord dl pr = execState (pCheck pr $ dcCheck dl $ ocCheck ord) ([],[])
+econstrSolve :: [Ordered] -> [Deadline] -> [Prioritized] -> [Todo] -> ([Scheduled],[Scheduled]) 
+econstrSolve ord dl pr td= execState (tdCheck td $ pCheck pr $ dcCheck dl $ ocCheck ord) ([],[])
 
 ----ordSolve
 
@@ -98,12 +101,6 @@ hasdTime [] dt = (utczero,utczero)
 hasdTime (x:[]) dt = dhelper dt x
 hasdTime (x:xs) dt = if hasTimetest (getsStop x) (getsStart (head xs)) dt then dhelper dt x else hasdTime (xs) dt
 
---TODO Rewrite dhelper to the guarded function
--- dhelper :: DiffTime -> Scheduled -> (UTCTime, UTCTime)
--- dhelper dt x = if bed < (utctDayTime $ getsStop x)+dt --if it's past bedtime, add the event in the morning
---               then (addUTCTime (liftTime (bed - wake)) (UTCTime (utctDay $ getsStop x) bed), addUTCTime (liftTime (bed - wake + dt)) (UTCTime (utctDay $ getsStop x) bed ))
---               else (getsStop x, addUTCTime (liftTime dt) (getsStop x) ) 
-
 dhelper :: DiffTime -> Scheduled -> (UTCTime, UTCTime)
 dhelper dt x 
     | bed < (utctDayTime $ getsStop x) + dt   = (addUTCTime (liftTime (bed - wake)) (UTCTime (utctDay $ getsStop x) (bed)), addUTCTime (liftTime (bed - wake + dt)) (UTCTime (utctDay $ getsStop x) (bed)) )
@@ -111,8 +108,8 @@ dhelper dt x
 
 --Add the event to either to state (left - not possible, right - assign time)
 dlAdd :: ([Scheduled], [Scheduled]) -> Deadline -> Scheduled
-dlAdd (l, r) d = if ht == (utczero, utczero) then (Scheduled (ParseEvent NoEvent (prio $ dEvent d) (pSET $ dEvent d) (dur $ dEvent d)) ) 
-                 else (Scheduled (ParseEvent NoEvent (prio $ dEvent d) ht (dur $ dEvent d)) )
+dlAdd (l, r) d = if ht == (utczero, utczero) then (Scheduled (ParseEvent (desc $ dEvent d) (prio $ dEvent d) (pSET $ dEvent d) (dur $ dEvent d)) ) 
+                 else (Scheduled (ParseEvent (desc $ dEvent d) (prio $ dEvent d) ht (dur $ dEvent d) ) )
     where deadline      = getdStop d --deadline stored in snd
           duration      = dur $ dEvent $ d 
           before        = filter (\s -> deadline > (getsStop s)) (sortBy (schDateCompare) r) -- filters events deadline > end of other event
@@ -147,7 +144,7 @@ phelper dt x = if bed < (utctDayTime $ getsStop x)+dt --if it's past bedtime, ad
                else (getsStop x, addUTCTime (liftTime dt) (getsStop x) ) 
 
 pAdd :: ([Scheduled],[Scheduled]) -> Prioritized -> Scheduled
-pAdd (l,r) p = (Scheduled (ParseEvent NoEvent (prio $ pEvent p) giventime (dur $ pEvent p)) )
+pAdd (l,r) p = (Scheduled (ParseEvent (desc $ pEvent p) (prio $ pEvent p) giventime (dur $ pEvent p)) )
                     where duration      = dur $ pEvent $ p
                           giventime     = haspTime r duration
 
@@ -172,7 +169,7 @@ thelper dt x = if bed < (utctDayTime $ getsStop x)+dt --if it's past bedtime, ad
               else (getsStop x, addUTCTime (liftTime dt) (getsStop x) ) 
 
 tdAdd :: ([Scheduled], [Scheduled]) -> Todo -> Scheduled
-tdAdd (l, r) td =  (Scheduled (ParseEvent NoEvent (prio $ tEvent td) giventime (dur $ tEvent td)) )
+tdAdd (l, r) td =  (Scheduled (ParseEvent (desc $ tEvent td) (prio $ tEvent td) giventime (dur $ tEvent td)) )
                     where duration      = dur $ tEvent $ td
                           giventime     = hastdTime r duration 
 
@@ -183,4 +180,3 @@ tdSolve todos (w, s) = foldl (\(l, r) x -> (l, r ++ [tdAdd (l, r) x])) (w, s) to
 stateToSols :: ([Scheduled], [Scheduled]) ->  ([String], [String])
 stateToSols = over both (fmap show)
 
-stateToEvent :: ([Scheduled], [Scheduled]) -> MParser Vevent
