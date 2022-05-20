@@ -296,7 +296,8 @@ getDateTimeE = do year <- replicateM 4 numberChar -- <*> getCNumType <*> getCNum
                   hour <- replicateM 2 numberChar
                   minute <- replicateM 2 numberChar
                   second <- replicateM 2 numberChar
-                  return (UTCTime (fromGregorian year month day) (secondsToDiffTime hour*3600 + minute*60 + second) )
+                  return (UTCTime (fromGregorian (read year::Integer)  (read month:: Int) (read day :: Int)) 
+                                  (secondsToDiffTime $ (read hour :: Integer)*3600 + (read minute :: Integer)*60 + (read second :: Integer)) )
 
 getDateStartE :: MParser DateStart
 getDateStartE =  DateStart <$> (string' "DTSTART:" *> getDateTimeE <* "\n")
@@ -311,7 +312,7 @@ getDurationE :: MParser Duration
 getDurationE = Duration <$> (string' "DURATION:" *> (Just <$> getTimeDay) <* "\n")
 
 getPrioE :: MParser Priority
-getPrioE = Priority <$> (string' "PRIORITY:" *> getNumTypeE <* "\n")
+getPrioE = Priority <$> (string' "PRIORITY:" *> getNumType <* "\n")
 
 getEvtSeqE :: MParser EvtSequence
 getEvtSeqE = EvtSequence <$> getNumType
@@ -363,6 +364,21 @@ getTodo = do prio <- string' "Priority:" *> L.decimal
              dur  <- (space1 *> getTimeDay)
              return (Todo (ParseEvent (fromMaybe "" desc) prio (utczero,utczero) dur))
 
+getOrderedList :: MParser [Ordered]
+getOrderedList = do a <- many getOrdered
+                    return a
+
+getDeadlineList :: MParser [Deadline]
+getDeadlineList = do a <- many getDeadline
+                     return a
+
+getPrioritizedList :: MParser [Prioritized]
+getPrioritizedList = do a <- many getPrioritized
+                        return a
+
+getTodoList :: MParser [Todo]
+getTodoList = do a <- many getTodo
+                 return a               
 -- schToVevent' :: Scheduled -> Vevent 
 -- schToVevent' sch = parseMaybe getVevent "" (intersperse " " $ concat $ zipWith (++) ["Desc ","Start ","Stop ", "Prio "] [(desc . sEvent) sch, show $ getsStart sch, show $ getsStop sch, (show $ prio . sEvent) sch]) 
 

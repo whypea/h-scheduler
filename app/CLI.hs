@@ -20,8 +20,8 @@ import Control.Applicative
 import Data.Semigroup
 import  Text.Megaparsec
 import  Text.Megaparsec.Char
-import Data.Time
-import Data.Void
+-- import Data.Time
+-- import Data.Void
 import Data.Maybe
 import qualified Options.Applicative as O
 import Options.Applicative.Arrows (asA, runA, A (A))
@@ -31,6 +31,7 @@ import System.IO
 import Text.Megaparsec (parseMaybe)
 import InputParsers (getStr)
 import Data.Maybe (fromMaybe)
+import Control.Monad.Trans.Reader ( ask )
 
 data Opts = Opts {
      filename :: String
@@ -49,15 +50,13 @@ data ActualCommands = EditFile (IO (Maybe Handle))
               | PrioritizedList (Maybe Prioritized)   
               | TodoList (Maybe Todo) 
 
-data Commands = ParseString (Maybe String)
-              | ParseNum (Maybe Int)
-              | Exit
-              | Options Opts
-    deriving (Show)
+-- data Commands = ParseString (Maybe String)
+--               | ParseNum (Maybe Int)
+--               | Exit
+--               | Options Opts
+--     deriving (Show)
 
 data ACO = ACO ActualCommands Opts 
-
-stringreader = O.strArgument 
 
 --A cleaner way to do command courtesy of 
 --https://github.com/haskell-mafia/mafia/blob/master/src/Mafia/Options/Applicative.hs
@@ -87,13 +86,13 @@ todolist = TodoList $ parseMaybe (getTodo) ""
 actCommands :: O.Parser ActualCommands
 actCommands =  O.subparser 
         ( (command' "ord" "Add a list of events with a set date, eg. meetings" (pure orderedlist))
-         <> (command' "dl" "Add tasks with a certain date to finish by" (pure deadlinelist))
+         <> (command' "dl" "Add tasks with a certain date to finish by \n Syntax: " (pure deadlinelist))
          <> (command' "prio" "Add tasks with some priority" (pure priolist)) 
          <> (command' "td" "Add tasks to be done sometime" (pure todolist)) ) 
 
 -- actCommandsasA = asA actCommands 
 
---Options are a parser (permutation)
+--Options are a parser (permutation) for a record type, can 
 --TODO how to actually read the options
 topOptions :: O.Parser Opts
 topOptions = Opts
@@ -135,8 +134,9 @@ cli :: IO ()
 cli = do 
     go <- O.execParser (O.info commandoptParser (O.fullDesc <> O.progDesc "Description")) 
     case go of 
-        ACO (OrderedList a) _ -> do
+        ACO (OrderedList a) o -> do
             print (a)
+            print (filename o)
         ACO (PrioritizedList a) _ -> do
             print (a)
         ACO (DeadlineList a) _ -> do
