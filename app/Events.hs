@@ -7,40 +7,92 @@
 {-# LANGUAGE GADTs #-}
 module Events where
 
-import Data.Void ()
-import System.IO.Unsafe ()
+import System.Random 
+import System.IO.Unsafe 
+import System.IO
 import Control.Applicative ()
-import Text.Megaparsec ( Parsec )
-import Text.Megaparsec.Char ()
+import Text.Megaparsec (ParseErrorBundle)
+import Text.Megaparsec.Char 
 import qualified Text.Megaparsec.Char.Lexer as L
 
 import Data.Time
-
-import Data.Time.Format.ISO8601 ()
+import Data.Void 
+import Control.Lens
+import Data.Time.Format.ISO8601 
 import qualified Data.Text as T 
 import GHC.IO (unsafePerformIO)
-import Data.Data ()
-import Control.Lens ()
-import Control.Monad.Trans.State (StateT)
+import Data.Data 
+import Control.Lens
+import Control.Monad.Trans.State 
 import Data.Time.Calendar.Julian (DayOfYear)
 import Data.Time.Calendar.OrdinalDate (WeekOfYear)
-import GHC.Read (Read(readPrec))
 import TextShow
+import Options.Applicative as O 
 
 dtCond :: Char -> Bool
 dtCond = \x -> x /= '-' && x /= ':'
 
---TODO: Maybe possibility for self-defined events?
--- data EventCat = Ord | Dead | Prio | Todo 
+data ParseEvent = ParseEvent
+    {desc :: String               --Event
+    ,prio  :: Int               --Priority
+    ,pSET  :: (UTCTime,UTCTime) --Start/end time
+    ,dur   :: DiffTime          --estimated duration, relevant
+    } 
+data WithRule a = WithRule {event :: a, rule :: Maybe VrRule}
 
---Event as gotten from the parser
---TODO Pevent -> Solver types -> Vevent -> Print
+newtype Scheduled = Scheduled {sEvent :: ParseEvent}         --
+newtype Ordered = Ordered {oEvent :: ParseEvent}             --Set date, eg. meetings   
+newtype Deadline = Deadline {dEvent :: ParseEvent}           --Certain date to finish by, 
+newtype Prioritized = Prioritized {pEvent :: ParseEvent}     --timed tasks with a priority, flexible
+newtype Todo  = Todo {tEvent :: ParseEvent}                  --Any time, priority has lower pecedence than above
 
+instance Show ParseEvent where 
+    show (ParseEvent event prio pSet dur) = show prio ++ "-" ++ show (pSet^._1) ++ "-" ++ show (pSet^._2) ++ "-" ++ show dur -- ++ show (pget $ rule)
+
+instance Show Scheduled where
+    show (Scheduled s) = show s
+
+instance Show Ordered where
+    show (Ordered s) = show s
+
+instance Show Deadline where
+    show (Deadline s) = show s
+
+instance Show Prioritized where
+    show (Prioritized s) = show s
+
+instance Show Todo where
+    show (Todo s) = show s
+
+data Opts = Opts {
+     filename      :: String
+    ,uidsuffix     :: String
+    ,calendarStart :: String
+    ,wake          :: String
+    ,bed           :: String
+    --,command  :: ActualCommands 
+} 
+    deriving Show 
+
+data InsideCommands = OrderedList  (Either (ParseErrorBundle String Void) Ordered)              --(O.ReadM Ordered)
+                    | DeadlineList (Either (ParseErrorBundle String Void) Deadline)             
+                    | PrioritizedList (Either (ParseErrorBundle String Void) Prioritized)       --(Either (ParseErrorBundle String Void) Deadline)    
+                    | TodoList     (Either (ParseErrorBundle String Void) Todo)                 --(Maybe Todo) 
+--TODO
+data ActualCommands = EditFile 
+                    | MakeFile  
+
+data ILists         = ILists {ordlist     :: [(Either (ParseErrorBundle String Void) Ordered)] 
+                             ,dllist      :: [(Either (ParseErrorBundle String Void) Deadline)] 
+                             ,priolist    :: [(Either (ParseErrorBundle String Void) Prioritized)] 
+                             ,tdlist      :: [(Either (ParseErrorBundle String Void) Todo)]  }
+
+data ACO = ACO ActualCommands Opts 
 
 --Types for iCal
 data Vevent = NoEvent | Vevent
     {
-     eDTstamp :: Datetime        --P
+     eDTstamp :: Datetime       --P
     ,eUID     :: UID            --P (takes Datetime)
     ,eClass   :: EClass         --P
     ,eDTStart :: DateStart      --P
@@ -56,7 +108,7 @@ data Vevent = NoEvent | Vevent
 newtype Datetime = DT UTCTime
 
 instance Show Datetime where
-    show (DT a) = formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a
+    show (DT a) = "DATETIME:" ++ formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a
 
 instance TextShow Datetime where 
     showb a =  fromString (show a)
@@ -66,7 +118,11 @@ newtype UID = UID String deriving (Show)
 instance TextShow UID where
     showb a = fromString (show a)  
 
-data Transp = TRANSPARENT | OPAQUE deriving (Show, Enum)
+data Transp = TRANSPARENT | OPAQUE
+
+instance Show Transp where
+    show TRANSPARENT = "TRANSP:TRANSPARENT"
+    show OPAQUE = "TRANSP:OPAQUE" 
 
 instance TextShow Transp where
     showb a = showb (show a)
@@ -75,7 +131,7 @@ data DateStart = DateStart UTCTime
 
 --TODO make the correct formatting with formatTime
 instance Show (DateStart) where
-    show (DateStart a) = "DTSTART=" ++ formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a ++ "\n"
+    show (DateStart a) = "DTSTART:" ++ formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a ++ "\n"
 
 instance TextShow DateStart where 
     showb a = fromString (show a) 
@@ -83,7 +139,7 @@ instance TextShow DateStart where
 data DateStop = DateStop (Maybe UTCTime) 
 
 instance Show (DateStop) where
-    show (DateStop (Just a)) = "DTSTOP=" ++ formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a    ++ "\n"
+    show (DateStop (Just a)) = "DTSTOP:" ++ formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a    ++ "\n"
     show (DateStop (Nothing)) = ""
 
 instance TextShow DateStop where
@@ -92,8 +148,8 @@ instance TextShow DateStop where
 data Desc = Desc (Maybe String)
 
 instance Show (Desc) where
-    show (Desc (Just a)) = "DESCRIPTION=" ++ show a ++ "\n"
-    show (Desc (Nothing)) = ""
+    show (Desc (Just a)) = "DESCRIPTION:" ++ show a ++ "\n"
+    show (Desc (Nothing))  = ""
 
 instance TextShow Desc where
     showb a = fromString (show a)  
@@ -101,9 +157,9 @@ instance TextShow Desc where
 data EClass = PUBLIC | PRIVATE | CONFIDENTIAL | IANA String | XNAME String 
 
 instance Show (EClass) where 
-    show PUBLIC = "CLASS=PUBLIC"
-    show PRIVATE = "CLASS=PRIVATE"
-    show CONFIDENTIAL = "CLASS=CONFIDENTIAL"
+    show PUBLIC = "CLASS:PUBLIC"
+    show PRIVATE = "CLASS:PRIVATE"
+    show CONFIDENTIAL = "CLASS:CONFIDENTIAL"
     show (IANA a) = "IANA" ++ show a
     show (XNAME a) = "XNAME" ++ show a 
 
@@ -113,7 +169,7 @@ instance TextShow EClass where
 data Priority = Priority (Maybe Int) 
 
 instance Show Priority where 
-    show (Priority (Just a)) = "PRIORITY=" ++ show a ++ "\n"
+    show (Priority (Just a)) = "PRIORITY:" ++ show a ++ "\n"
     show (Priority Nothing) = "" 
 
 instance TextShow Priority where
@@ -122,7 +178,7 @@ instance TextShow Priority where
 data EvtSequence = EvtSequence (Maybe Int)
 
 instance Show EvtSequence where 
-    show (EvtSequence (Just a)) = "SEQUENCE=" ++ show a
+    show (EvtSequence (Just a)) = "SEQUENCE:" ++ show a
     show (EvtSequence (Nothing)) = ""
 
 instance TextShow EvtSequence where
@@ -131,7 +187,7 @@ instance TextShow EvtSequence where
 data Duration = Duration (Maybe DiffTime)
     
 instance Show Duration where
-    show (Duration (Just a)) = "DURATION=" ++ show a 
+    show (Duration (Just a)) = "DURATION:" ++ show a 
     show (Duration (Nothing)) = ""
 
 instance TextShow Duration where
@@ -143,21 +199,17 @@ instance TextShow Duration where
 -- concat $ zipWith (++) (fmap show [eDTstamp, eUID ,eClass,eDTStart,eDescription,ePrio,eSeq,eTimeTrans,eRecur,eAlarm,eRRule])
 -- ["DATETIME","UID:", "CLASS:", "DTSTART:", "DESCRIPTION", "PRIORITY:", "SEQUENCE:", "TRANSP:", "RECUR:", "ALARM:", "RRULE:"]--TODO
 
---TODO this is disgusting
 instance Show Vevent where
-     show NoEvent = "No Event"
-     show (Vevent stamp uid eclass start (DateStop Nothing) duration desc prio seq timet rrule) =
-         "BEGIN: VEVENT=\n" ++ show stamp ++ "\n" ++ show uid ++ "\n" ++ "CLASS=" 
-         ++ show eclass ++ ";" ++ show start ++ ";" ++ show duration ++ "\n" ++ "DESCRIPTION=" 
-         ++ show desc ++ "\n"  ++ show prio ++ "\n" ++ show seq ++ "\n"
-         ++ "TRANSP=" ++ show timet ++ "\n" ++ "RECUR=" ++ show rrule ++ "\n" 
-         
-     show (Vevent stamp uid eclass start stop (Duration Nothing) desc prio seq timet rrule) =
-         "BEGIN= VEVENT=\n" ++ "DATETIME="++ show stamp ++ "\n" ++  "UID=" ++ show uid ++ "\n" ++ "CLASS=" 
-         ++ show eclass ++ ";" ++ "DTSTART=" ++ show start ++ ";"++ "DTEND="
-         ++ show stop ++ "\n" ++ "DESCRIPTION=" ++ show desc ++ "\n" ++ "PRIORITY=" ++
-         show prio ++ "\n" ++"SEQUENCE=" ++ show seq ++ "\n" ++ "TRANSP=" ++ show timet ++ "\n" 
-         ++ "RECUR=" ++ show rrule ++ "\n"
+    show NoEvent = "No Event"
+    show (Vevent stamp uid eclass start (DateStop Nothing) duration desc prio seq timet rrule) =
+         "BEGIN: VEVENT\n" ++ show stamp ++ "\n" ++ show uid ++ "\n" 
+         ++ show eclass ++ ";" ++ show start ++ ";" ++ show duration ++ "\n" ++ show desc ++ "\n"  ++ show prio ++ "\n" ++ show seq ++ "\n"
+         ++ show timet ++ "\n" ++ "RECUR:" ++ show rrule ++ "\n" ++ "END:VEVENT"       
+    show (Vevent stamp uid eclass start stop (Duration Nothing) desc prio seq timet rrule) =
+         "BEGIN: VEVENT\n" ++ show stamp ++ "\n" ++  "UID:" ++ show uid ++ "\n" ++ show eclass ++ ";\n" ++ show start ++ "\n"
+         ++ show stop ++ "\n"  ++ show desc ++ "\n" ++
+         show prio ++ "\n"  ++ show seq ++ "\n" ++ show timet ++ "\n" 
+         ++ "RECUR:" ++ show rrule ++ "\n" ++ "END:VEVENT"
 
 instance TextShow Vevent where
     showb (Vevent stamp uid eclass start (DateStop Nothing) duration desc prio seq timet rrule) = showb stamp <> showb uid <> showb eclass<> showb start 
@@ -284,25 +336,27 @@ newtype Version = Version String
 instance Show Version where
     show (Version a) = "2.0" --Change if the standards update 
 
-newtype TZ = TZ TimeZone --offset in minutes 
+newtype TZ = TZ TimeZone --offset in minutes s
 
 instance Show TZ where
     show (TZ a) = show (timeZoneMinutes a) 
 
+-- 
 instance Show Vcalendar where
     show (Vcalendar prodid version scale tz events) =
-     "BEGIN:VCALENDAR\n" ++ show prodid ++ "VERSION="
-     ++ show version ++ "\n" ++ "SCALE=" ++ show scale ++ "\n" 
-     ++ "TIMEZONE="++ show tz ++ "\n" ++ "EVENTS="++ printList events
+     "BEGIN:VCALENDAR\n" ++ show prodid ++ "VERSION:" ++ "\n" ++ "SCALE=" ++ show scale ++ "\n" 
+     ++ "TIMEZONE="++ show tz ++ "\n"++ show version ++ "\n" ++ printList events ++ "\n" ++ "END:VCALENDAR"
 
 printList :: Show a => [a] -> String
 printList [] = ""
-printList (x:xs) = show x ++ printList xs
+printList (x:xs) = show x ++ "\n" ++ printList xs
 
 --printers
 
 --TODO Change this to an option passed down from CLI (Reader get)
-uidID :: [Char]
-uidID = "@h-scheduler"
+uidID ::UTCTime -> Opts -> String
+uidID a opts = formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a ++ show (evalState (uidNumber) $ mkStdGen seed )  ++ uidsuffix opts
+    where seed = ceiling $ toRational $ utctDayTime a
 
-
+uidNumber :: State StdGen Int
+uidNumber = state $ uniformR (10000 :: Int, 99999 :: Int)

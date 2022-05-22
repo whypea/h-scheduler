@@ -13,44 +13,9 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import Data.Time
 import Data.Void
 import Control.Lens
-
-data ParseEvent = ParseEvent
-    {desc :: String               --Event
-    ,prio  :: Int               --Priority
-    ,pSET  :: (UTCTime,UTCTime) --Start/end time
-    ,dur   :: DiffTime          --estimated duration, relevant
-    --,rule  :: ParserRule 
-    } 
-data WithRule a = WRule {event :: a, rule :: Maybe VrRule}
-
-newtype Scheduled = Scheduled {sEvent :: ParseEvent} 
-newtype Ordered = Ordered {oEvent :: ParseEvent}             --Set date, eg. meetings   
-newtype Deadline = Deadline {dEvent :: ParseEvent}           --Certain date to finish by, 
-newtype Prioritized = Prioritized {pEvent :: ParseEvent}     --timed tasks with a priority, flexible
-newtype Todo  = Todo {tEvent :: ParseEvent}                  --Any time, priority has lower pecedence than above
-
-instance Show ParseEvent where 
-    show (ParseEvent event prio pSet dur) = show prio ++ "-" ++ show (pSet^._1) ++ "-" ++ show (pSet^._2) ++ "-" ++ show dur -- ++ show (pget $ rule)
-
-instance Show Scheduled where
-    show (Scheduled s) = show s
-
-instance Show Ordered where
-    show (Ordered s) = show s
-
-instance Show Deadline where
-    show (Deadline s) = show s
-
-instance Show Prioritized where
-    show (Prioritized s) = show s
-
-instance Show Todo where
-    show (Todo s) = show s
+import Data.Maybe
 
 -----FROM SOlVER
-wake :: DiffTime
-bed :: DiffTime
-(wake,bed) = (secondsToDiffTime 32400, secondsToDiffTime 75600)
 
 getDT :: UTCTime -> DiffTime
 getDT = utctDayTime
@@ -59,38 +24,6 @@ getDT = utctDayTime
 utczero :: UTCTime
 utczero = UTCTime (fromGregorian 1858 11 17) (0) 
 
-schDateCompare :: Scheduled -> Scheduled -> Ordering
-schDateCompare p1 p2 = compare ((pSET . sEvent $ p1)^._2) ((pSET . sEvent $ p2)^._2)
-
-deadpCompare :: Deadline -> Deadline -> Ordering
-deadpCompare p1 p2 = compare (prio . dEvent $ p1) (prio . dEvent $ p2)
-
-priopCompare :: Prioritized -> Prioritized -> Ordering
-priopCompare p1 p2 = compare (prio . pEvent $ p1) (prio . pEvent $ p2)
-
-todopCompare :: Todo -> Todo -> Ordering
-todopCompare p1 p2 = compare (prio . tEvent $ p1) (prio . tEvent $ p2)
-
---Find an open timeslot by checking if stoptime_last - starttime_first are less than the duration
-hasTimetest :: UTCTime -> UTCTime -> DiffTime -> Bool
-hasTimetest stop start dur = comp == LT || comp == EQ  --EQ makes it open
-    where comp = compare dur (getDT stop - getDT start)
-
-withinDay :: DiffTime -> Bool 
-withinDay x = x > wake && x < bed 
-
---Compares time 
-timeCompare :: ParseEvent -> ParseEvent -> Bool
-timeCompare p1 p2 =  not (dateoverlap p1 p2) --not overlapping
-                    && withinDay (utctDayTime ((pSET $ p1)^._1)) && withinDay (utctDayTime ((pSET $ p2)^._1)) --first event inside of day
-                    && withinDay (utctDayTime ((pSET $ p1)^._2)) && withinDay (utctDayTime ((pSET $ p2)^._2)) --second event inside of day
-
-dateoverlap :: ParseEvent -> ParseEvent -> Bool
-dateoverlap p1 p2 = (diffUTCTime ((pSET $ p1)^._1) ((pSET $ p2)^._2) < 0 && diffUTCTime ((pSET $ p1)^._2) ((pSET $ p2)^._1) > 0 )
-
-timeoverlap:: (UTCTime, UTCTime) -> (UTCTime, UTCTime) -> Bool
-timeoverlap (t1, t2) (c1, c2) = diffUTCTime t1 c2 < 0 && diffUTCTime t2 c1 > 0 
-
 getsStop :: Scheduled -> UTCTime
 getsStop x = (pSET . sEvent $ x)^._2
 
@@ -98,22 +31,22 @@ getsStart :: Scheduled -> UTCTime
 getsStart x = (pSET . sEvent $ x)^._1
 
 getoStart :: Ordered -> UTCTime 
-getoStart x= (pSET . oEvent $ x)^._1
+getoStart x = (pSET . oEvent $ x)^._1
 
 getoStop :: Ordered -> UTCTime 
-getoStop x= (pSET . oEvent $ x)^._2
+getoStop x = (pSET . oEvent $ x)^._2
 
 getdStart :: Deadline -> UTCTime 
-getdStart x= (pSET . dEvent $ x)^._1
+getdStart x = (pSET . dEvent $ x)^._1
 
 getdStop :: Deadline -> UTCTime 
-getdStop x= (pSET . dEvent $ x)^._2
+getdStop x = (pSET . dEvent $ x)^._2
 
 getpStart :: Prioritized -> UTCTime 
-getpStart x= (pSET . pEvent $ x)^._1
+getpStart x = (pSET . pEvent $ x)^._1
 
 getpStop :: Prioritized -> UTCTime 
-getpStop x= (pSET . pEvent $ x)^._2
+getpStop x = (pSET . pEvent $ x)^._2
 
 
 

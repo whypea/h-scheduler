@@ -6,6 +6,7 @@
 {-# LANGUAGE DataKinds      #-}
 {-# LANGUAGE BlockArguments      #-}
 {-# LANGUAGE Arrows #-}
+{-# OPTIONS_GHC -Wno-overlapping-patterns #-}
 module CLI where
 
 import InputParsers
@@ -24,39 +25,19 @@ import  Text.Megaparsec.Char
 -- import Data.Void
 import Data.Maybe
 import qualified Options.Applicative as O
+import qualified Options.Applicative.Types as O
 import Options.Applicative.Arrows (asA, runA, A (A))
 import qualified Data.Text as T
 import System.IO
 
 import Text.Megaparsec (parseMaybe)
-import InputParsers (getStr)
+import InputParsers (getStr, getOrdered, getPrioritized)
 import Data.Maybe (fromMaybe)
-import Control.Monad.Trans.Reader ( ask )
+import Control.Monad.Trans.Reader ( ask, runReader )
+import Options.Applicative
+import qualified Options.Applicative as O
+import qualified Options.Applicative.Common as O
 
-data Opts = Opts {
-     filename :: String
-    ,uidsuffix :: String
-    ,bfill    :: Bool
-    ,verbose  :: Bool
-    -- ,input    :: Bool
-    --,command  :: Commands 
-} 
-    deriving Show 
-
-data ActualCommands = EditFile (IO (Maybe Handle))  
-              | CreateFile (IO Handle) 
-              | OrderedList (Maybe Ordered)   
-              | DeadlineList (Maybe Deadline) 
-              | PrioritizedList (Maybe Prioritized)   
-              | TodoList (Maybe Todo) 
-
--- data Commands = ParseString (Maybe String)
---               | ParseNum (Maybe Int)
---               | Exit
---               | Options Opts
---     deriving (Show)
-
-data ACO = ACO ActualCommands Opts 
 
 --A cleaner way to do command courtesy of 
 --https://github.com/haskell-mafia/mafia/blob/master/src/Mafia/Options/Applicative.hs
@@ -64,36 +45,33 @@ command' :: String -> String -> O.Parser a -> O.Mod O.CommandFields a
 command' label description parser =
   O.command label (O.info (parser <**> O.helper) (O.progDesc description))
 
---read the name value
-createFile :: ActualCommands 
-createFile = CreateFile $ makeICS "name"
+-- read the name value
+-- createFile :: InsideCommands 
+-- createFile = CreateFile $ makeICS
 
-editFile :: ActualCommands
-editFile = EditFile $ editICS ""
+-- editFile :: InsideCommands
+-- editFile = EditFile $ editICS 
 
-orderedlist :: ActualCommands
-orderedlist = OrderedList $ parseMaybe (getOrdered) ""   
+--No need to do these as single type
+orderedlist :: String -> (Either (ParseErrorBundle String Void) Ordered)
+orderedlist = runParser getOrdered "" --(runParser getOrdered "") 
 
-deadlinelist :: ActualCommands
-deadlinelist = DeadlineList $ parseMaybe (getDeadline) ""
+deadlinelist :: String -> (Either (ParseErrorBundle String Void) Deadline)  
+deadlinelist =  runParser getDeadline ""--(runParser getDeadline "") 
 
-priolist :: ActualCommands
-priolist = PrioritizedList $ parseMaybe (getPrioritized) ""
+prioritylist :: String -> (Either (ParseErrorBundle String Void) Prioritized)
+prioritylist =  runParser getPrioritized "" --(runParser getPrioritized "")  
 
-todolist :: ActualCommands
-todolist = TodoList $ parseMaybe (getTodo) ""
+todolist :: String -> (Either (ParseErrorBundle String Void) Todo)
+todolist =  runParser getTodo ""
 
 actCommands :: O.Parser ActualCommands
 actCommands =  O.subparser 
-        ( (command' "ord" "Add a list of events with a set date, eg. meetings" (pure orderedlist))
-         <> (command' "dl" "Add tasks with a certain date to finish by \n Syntax: " (pure deadlinelist))
-         <> (command' "prio" "Add tasks with some priority" (pure priolist)) 
-         <> (command' "td" "Add tasks to be done sometime" (pure todolist)) ) 
-
--- actCommandsasA = asA actCommands 
+        ( (command' "make" "make/overwrite a file 'filename' "  (pure MakeFile))
+         <> (command' "edit" "edit the file named 'filename' " (pure EditFile)))
 
 --Options are a parser (permutation) for a record type, can 
---TODO how to actually read the options
+
 topOptions :: O.Parser Opts
 topOptions = Opts
       <$> O.strOption
@@ -107,15 +85,21 @@ topOptions = Opts
          <> O.metavar "UID"
          <> O.value "h-scheduler"
          <> O.help "Identifier for the instance" )
-      <*> O.switch
-          ( O.long "bfill"
+      <*> O.strOption
+          ( O.long "Calendar Start"
+         <> O.short 'c'
+         <> O.help "Start of the calendar, used for starting a calendar")
+      <*> O.strOption
+          ( O.long "Wake-up time"
+         <> O.short 'w'
+         <> O.value "8:00"
+         <> O.value "h-scheduler"
+         <> O.help "When to wake up, hh:mm")
+      <*> O.strOption
+          ( O.long "Bedtime"
          <> O.short 'b'
-         <> O.help "Do/don't ask for every single field")
-      <*> O.switch
-          ( O.long "verbose"
-         <> O.short 'v'
-         <> O.help "How many words to use")
-
+         <> O.value "22:00"
+         <> O.help "When to go to bed, hh:mm")
 
 opts :: O.ParserInfo Opts
 opts = O.info (topOptions <**> O.helper) 
@@ -127,23 +111,55 @@ commandoptParser :: O.Parser ACO
 commandoptParser = runA $ proc () -> do 
                        opts <- asA topOptions -< ()
                        cmds <- asA actCommands -< ()
-                       A O.helper -< ACO cmds opts      --makes the 
 
---TODO Actual control structure with options, not just 
+                       A O.helper -< ACO cmds opts      --makes the combined type
+
+--TODO Actual control structure with options, not just tests
+--TODO Add the solvers into this, reading in bed, wake, then 
 cli :: IO () 
 cli = do 
     go <- O.execParser (O.info commandoptParser (O.fullDesc <> O.progDesc "Description")) 
     case go of 
-        ACO (OrderedList a) o -> do
-            print (a)
-            print (filename o)
-        ACO (PrioritizedList a) _ -> do
-            print (a)
-        ACO (DeadlineList a) _ -> do
-            print (a)
-        ACO (TodoList a) _ -> do
-            print (a)
+        ACO MakeFile opts  -> do a <- makeICS (filename opts)
+                                 state a
+                                 return ()
+        ACO EditFile opts   -> do h <- editICS (filename opts)
+                                  case h of 
+                                      Just h  -> workWithHandle h
+                                      Nothing -> print ("Nothing here!")   
+                                      return ()
+        -- ACO (PrioritizedList a) o -> do
+        --     print (a)    
+        --     print(filename o)        
+        -- ACO (DeadlineList a) o -> do
+        --     print (a)
+        -- ACO (TodoList a) o -> do
+        --     print (a)
     return ()
+
+workWithHandle :: Handle -> IO Handle
+workWithHandle hdl = do 
+                print ( "Add a list of events with a set date, eg. meetings")
+                ord <- getLine
+                case orderedlist ord of 
+                    Left bdl -> print (errorBundlePretty bdl)
+                    Right ls -> hPrint hdl ls  
+                print ("Add tasks with a certain date to finish by")
+                dline <- getLine
+                case deadlinelist dline of 
+                    Left bdl -> print (errorBundlePretty bdl)
+                                return hdl
+                    Right ls -> hPrint hdl ls
+                print ("Add tasks with some priority")
+
+                case prioritylist prio of 
+                    Left bdl -> print (errorBundlePretty bdl)
+                    Right ls -> hPrint hdl ls
+                print ("Add tasks to be done sometime")
+                case todolist todol of 
+                    Left bdl -> print (errorBundlePretty bdl)
+                                return h
+                    Right ls -> hPrint ls
 
 -- parse :: O.Parser a
 -- parse = O.subparser (O.command "string" (O.info O.auto O.parseCommand ))

@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies      #-}
@@ -32,13 +31,19 @@ import Control.Applicative.Permutations
 emptySingle :: (MonadParsec e s m, Token s ~ Char) => Token s -> m () --from source of space 
 emptySingle x = void $ single x
 
-makeUID :: [Char] 
-makeUID = foldr1 (++) [filter dtCond (show $ DT $ unsafePerformIO getCurrentTime), uidID] --Documentation doesn't give any side-effects
+-- makeUID :: Opts -> [Char] 
+-- makeUID opts = foldr1 (++) [filter dtCond (show $ DT $ unsafePerformIO getCurrentTime), uidID opts] --Documentation doesn't give any side-effects
 
 date :: IO Day -- :: (year,month,day)
 date = getCurrentTime >>=  return . utctDay
 
-type MParser = Parsec Void String 
+type MParser a = Parsec Void String a
+
+wakeO :: Opts -> DiffTime
+wakeO opts = fromMaybe 25200 $ parseMaybe getTimeDay (wake opts) 
+
+bedO :: Opts ->  DiffTime
+bedO opts = fromMaybe 75600 $ parseMaybe getTimeDay (bed opts)
 
 unsafeCurrentTime :: UTCTime
 unsafeCurrentTime = unsafePerformIO getCurrentTime 
@@ -75,11 +80,14 @@ nextWeekday wd now = addDays x now
 getStr :: MParser (Maybe String)
 getStr = Just <$> (some alphaNumChar <* eof)
 
+getStr' :: MParser String
+getStr' = (some alphaNumChar <* eof)
+
 -- getStr' :: MParser T.Text
 -- getStr' = T.pack $ some alphaNumChar <* eof
 
 getDateTime :: MParser UTCTime  
-getDateTime = UTCTime <$> (choice [getISO, getDateMonth,getnDay,getnWeek]) <*> (space1 *> getTimeDay) 
+getDateTime = UTCTime <$> (choice [getISO, getDateMonth, getnDay, getnWeek]) <*> (space1 *> getTimeDay) 
 
 getTimeDay :: MParser DiffTime 
 getTimeDay = do x <- getHour
@@ -197,9 +205,10 @@ getWeekNoE = WeekNo <$> (string' "WEEKNO:" *> getCNumType 52)
 
 ----RRULES
 --Some day every week
--- getWeeklyDate :: MParser VrRule
--- getWeeklyDate = do a <- string' "every " *> getDay
-                   
+getWeeklyDate :: MParser VrRule
+getWeeklyDate = do a <- string' "every " *> getDay 
+                   return getrRule "weekly " ++ getw 
+      where 
 --getMonthlyDate ::
 
 ----VEVENT
@@ -234,10 +243,10 @@ getFileVevent =  intercalateEffect (char ' ') $ Vevent
                  <*> toPermutationWithDefault (Nothing) (Just <$>getrRuleE)
 
 getDTStamp :: MParser Datetime
-getDTStamp = DT <$> getDateTime
+getDTStamp = DT <$> getDateTime 
 
 getUID :: MParser UID
-getUID = pure (UID (makeUID :: String))
+getUID = UID <$> getStr'
 
 getClass :: MParser EClass
 getClass = choice 
@@ -276,18 +285,26 @@ getDTStampE :: MParser Datetime
 getDTStampE = DT <$> getDateTime
 
 getUIDE :: MParser UID
-getUIDE = pure (UID (makeUID :: String))
-
+getUIDE = UID <$> getStr' <* crlf
+ 
 getClassE :: MParser EClass
 getClassE = choice 
- [ PUBLIC <$ string' "public"
+ [ PUBLIC <$ string' "public" 
  , PRIVATE <$ string' "private"
  , CONFIDENTIAL <$ string' "Confidential"
  --, IANA <$ string' "public"
  --, XNAME <$ string' "public"  
  ]
 
---TODO: getDateTime from this format "formatTime defaultTimeLocale "%YYYY%mm%ddT%HH%MM%SS" a", use this for the parser below
+-- "%YYYY%mm%ddT%HH%MM%SS" a", use this for the parser below
+
+getICS :: MParser Vcalendar
+getICS = do string' "Begin:VCALENDAR"
+            prodid  <- string' "PRODID:" *> many printChar <* crlf
+            version <- string' "VERSION:" *> many printChar <* crlf
+            body    <- many (getVevent <* crlf) 
+            string "END:VCALENDAR"
+            return (Vcalendar (Prod prodid) (Version version) GREGORIAN (TZ (TimeZone 0 False "UTC")) body)
 
 getDateTimeE :: MParser UTCTime
 getDateTimeE = do year <- replicateM 4 numberChar -- <*> getCNumType <*> getCNumType <*> (char '*') <*> 
@@ -300,19 +317,19 @@ getDateTimeE = do year <- replicateM 4 numberChar -- <*> getCNumType <*> getCNum
                                   (secondsToDiffTime $ (read hour :: Integer)*3600 + (read minute :: Integer)*60 + (read second :: Integer)) )
 
 getDateStartE :: MParser DateStart
-getDateStartE =  DateStart <$> (string' "DTSTART:" *> getDateTimeE <* "\n")
+getDateStartE =  DateStart <$> (string' "DTSTART:" *> getDateTimeE <* crlf)
 
 getDateStopE :: MParser DateStop
-getDateStopE =   DateStop <$> (string' "DTSTOP:" *> (Just <$> getDateTimeE) <* "\n")
+getDateStopE =   DateStop <$> (string' "DTSTOP:" *> (Just <$> getDateTimeE) <* crlf)
 
 getDescE :: MParser Desc
-getDescE = Desc <$> (string' "DESCRIPTION:" *>  getStr <* "\n")
+getDescE = Desc <$> (string' "DESCRIPTION:" *>  getStr <* crlf)
 
 getDurationE :: MParser Duration
-getDurationE = Duration <$> (string' "DURATION:" *> (Just <$> getTimeDay) <* "\n")
+getDurationE = Duration <$> (string' "DURATION:" *> (Just <$> getTimeDay) <* crlf)
 
 getPrioE :: MParser Priority
-getPrioE = Priority <$> (string' "PRIORITY:" *> getNumType <* "\n")
+getPrioE = Priority <$> (string' "PRIORITY:" *> getNumType <* crlf)
 
 getEvtSeqE :: MParser EvtSequence
 getEvtSeqE = EvtSequence <$> getNumType
@@ -324,13 +341,12 @@ getTranspE = choice
  ]
  
 getrRuleE :: MParser VrRule
-getrRuleE = string "RRULE:" *> getrRule 
-
+getrRuleE = string "RRULE:" *> getrRule <* crlf
 ------Pevent
 --How to get from interpreter
 
 getUTCPair :: MParser (UTCTime, UTCTime)
-getUTCPair = (,) <$> (string' "start: " *> getDateTime ) <*> (string' "end: " *> getDateTime)
+getUTCPair = (,) <$> (string' "start: " *> getDateTime ) <*> (space1 *> string' "end: " *> getDateTime)
 
 --Grammar: Type; prio; utcpair; 
 
@@ -344,6 +360,9 @@ getOrdered = do prio <- string' "Priority: " *> L.decimal
                 pair <- (space1 *> getUTCPair) 
                 desc <- (space1 *> getStr)
                 return(Ordered (ParseEvent (fromMaybe "" desc) prio pair (utctDayTime(pair^._2) -  utctDayTime(pair^._1))))
+
+-- getOrderedandRule :: Mparser WithRule Ordered 
+-- getOrderedandRule = 
 
 getDeadline :: MParser Deadline
 getDeadline = do prio <- string' "Priority: " *> L.decimal 
@@ -378,9 +397,7 @@ getPrioritizedList = do a <- many getPrioritized
 
 getTodoList :: MParser [Todo]
 getTodoList = do a <- many getTodo
-                 return a               
--- schToVevent' :: Scheduled -> Vevent 
--- schToVevent' sch = parseMaybe getVevent "" (intersperse " " $ concat $ zipWith (++) ["Desc ","Start ","Stop ", "Prio "] [(desc . sEvent) sch, show $ getsStart sch, show $ getsStop sch, (show $ prio . sEvent) sch]) 
+                 return a       
 
 schToVevent :: Scheduled -> Vevent 
 schToVevent sch = Vevent (DT (getsStart sch)) (UID " ") PUBLIC (DateStart $ getsStart sch) (DateStop $ Just (getsStop sch)) 
@@ -438,5 +455,6 @@ getYear = do year <- replicateM 4 numberChar
 vrtest = fromMaybe NoRule (parseMaybe (getrRule) "Daily Until 2014-12-15 14:15 Interval 3")
 
 --TODO parse the Vcalendar file
+--TODO withRule parser
 
 

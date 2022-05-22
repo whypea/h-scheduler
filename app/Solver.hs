@@ -11,8 +11,9 @@ import qualified Control.Monad.Trans.Class as Trans
 
 import Events
 import Common
-
+import InputParsers
 import Control.Monad.Trans.State
+import Control.Monad.Trans.Reader
 import Control.Applicative (Const)
 import Control.Lens
 import Control.Monad
@@ -24,12 +25,48 @@ import Data.Char (ord)
 import Data.Time
 
 type CState a = State ([WithRule Scheduled], [WithRule Scheduled]) a --Conflicts/not conflicts
-data RecurR = Recur [(UTCTime, UTCTime)]
+--data RecurR = Recur [(UTCTime, UTCTime)]
 
-initCstate :: CState ()
-initCstate = put ([],[])
+-- initCstate :: CState ()
+-- initCstate = put ([],[])
 
 liftTime = fromRational . toRational
+
+schDateCompare :: Scheduled -> Scheduled -> Ordering
+schDateCompare p1 p2 = compare ((pSET . sEvent $ p1)^._2) ((pSET . sEvent $ p2)^._2)
+
+deadpCompare :: Deadline -> Deadline -> Ordering
+deadpCompare p1 p2 = compare (prio . dEvent $ p1) (prio . dEvent $ p2)
+
+priopCompare :: Prioritized -> Prioritized -> Ordering
+priopCompare p1 p2 = compare (prio . pEvent $ p1) (prio . pEvent $ p2)
+
+todopCompare :: Todo -> Todo -> Ordering
+todopCompare p1 p2 = compare (prio . tEvent $ p1) (prio . tEvent $ p2)
+
+--Find an open timeslot by checking if stoptime_last - starttime_first are less than the duration
+hasTimetest :: UTCTime -> UTCTime -> DiffTime -> Bool
+hasTimetest stop start dur = comp == LT || comp == EQ  --EQ makes it open
+    where comp = compare dur (getDT stop - getDT start)
+
+withinDay :: Opts -> DiffTime -> Bool 
+withinDay opts x  = x > wakeO opts && x < bedO opts
+
+--Compares time 
+timeCompare :: Opts -> ParseEvent -> ParseEvent -> Bool
+timeCompare opts p1 p2 =  not (dateoverlap p1 p2) --not overlapping
+                    && withinDay opts (utctDayTime ((pSET $ p1)^._1)) && withinDay opts (utctDayTime ((pSET $ p2)^._1)) --first event inside of day
+                    && withinDay opts (utctDayTime ((pSET $ p1)^._2)) && withinDay opts (utctDayTime ((pSET $ p2)^._2)) --second event inside of day
+
+dateoverlap :: ParseEvent -> ParseEvent -> Bool
+dateoverlap p1 p2 = (diffUTCTime ((pSET $ p1)^._1) ((pSET $ p2)^._2) < 0 && diffUTCTime ((pSET $ p1)^._2) ((pSET $ p2)^._1) > 0 )
+
+timeoverlap:: (UTCTime, UTCTime) -> (UTCTime, UTCTime) -> Bool
+timeoverlap (t1, t2) (c1, c2) = diffUTCTime t1 c2 < 0 && diffUTCTime t2 c1 > 0 
+
+schDateCompareW :: WithRule Scheduled -> WithRule Scheduled -> Ordering
+schDateCompareW p1 p2 = compare ((pSET . sEvent .event $ p1)^._2) ((pSET . sEvent . event $ p2)^._2)
+
 
 --TODO list of times an event should repeat, for scheduled
 --TODO put this into the main solver
@@ -60,133 +97,139 @@ freqChecker t rlist = all (== True) $ map (timeoverlap t) rlist
 
 ----SOLVERS
 ----MAIN SOLVER
-econstrSolve :: [WithRule Ordered] -> [Deadline] -> [Prioritized] -> [Todo] -> ([WithRule Scheduled],[WithRule Scheduled]) 
-econstrSolve ord dl pr td= execState (tdCheck td $ pCheck pr $ dcCheck dl $ ocCheck ord) ([],[])
+econstrSolve :: Opts -> [WithRule Ordered] -> [Deadline] -> [Prioritized] -> [Todo] -> ([WithRule Scheduled],[WithRule Scheduled]) 
+econstrSolve opts ord dl pr td= execState (tdCheck opts td $ pCheck opts pr $ dcCheck opts dl $ ocCheck opts ord) ([],[])
 
 ----ordSolve
 
 --Finds amount of collisions in the dates
 
-ordGroups :: [WithRule Ordered] -> ([WithRule Scheduled], [WithRule Scheduled])
-ordGroups ordered = foldl (\(l, r) x -> if all (timeCompare $ oEvent $ event x) (fmap oEvent $ event r)  == True 
+ordGroups :: Opts -> [WithRule Ordered] -> ([WithRule Ordered], [WithRule Ordered])
+ordGroups opts ordered = foldl (\(l, r) x -> if all (timeCompare opts $ oEvent $ event x) (fmap (oEvent . event) r)  == True 
                      then (l,r++[x]) 
                      else (l++[x], r) ) ([], [head ordered]) (tail ordered)
     -- where sord = sortBy (ordered)
 
 --TODO: Current functions will (should) always assign times (with the exception of clashing ordered and overdue deadline)
 --      as it assigns them greedily on any available timeslots, without any higher bound. 
-ocCheck ::[Ordered] -> CState ()
-ocCheck ord = put (fmap retype (fst $ colGroups), fmap retype (snd $ colGroups) )
-    where colGroups = ordGroups ord
-          retype (Ordered oevt) =  Scheduled oevt
+ocCheck ::Opts -> [WithRule Ordered] -> CState ()
+ocCheck opts ord = put (fmap retype (fst $ colGroups), fmap retype (snd $ colGroups) )
+    where colGroups = ordGroups opts ord
+          retype (WithRule (Ordered oevt) rule) = WithRule (Scheduled oevt) rule
 
-eocCheck :: [WithRule Ordered] -> ([WithRule Scheduled], [WithRule Scheduled])
-eocCheck ord = execState (ocCheck ord) ([],[])
+eocCheck :: Opts -> [WithRule Ordered] -> ([WithRule Scheduled], [WithRule Scheduled])
+eocCheck opts ord = execState (ocCheck opts ord) ([],[])
 
 -- Sort after priority before assigning 
-dcCheck ::[Deadline] -> CState () -> CState ()
-dcCheck dl ostate = put (solved) 
+dcCheck :: Opts -> [Deadline] -> CState () -> CState ()
+dcCheck opts dl ostate = put (solved) 
  where sorted = sortBy deadpCompare dl   
-       solved = dlSolve sorted (execState ostate ([],[]))
+       solved = dlSolve opts sorted (execState ostate ([],[]))
 
-edcCheck :: [WithRule Scheduled]  -> [Deadline] -> ([WithRule Scheduled], [WithRule Scheduled])
-edcCheck ord dl = execState (dcCheck dl $ ocCheck ord) ([],[])
+edcCheck ::Opts -> [WithRule Ordered]  -> [Deadline] -> ([WithRule Scheduled], [WithRule Scheduled])
+edcCheck opts ord dl = execState (dcCheck opts dl $ ocCheck opts ord) ([],[])
 
 --Should always find a spot for it, since any events before the deadline are filtered out
 --Using utczero as empty list
-hasdTime :: [WithRule Scheduled] -> DiffTime -> (UTCTime,UTCTime)
-hasdTime [] dt = (utczero,utczero)
-hasdTime (x:[]) dt = dhelper dt x
-hasdTime (x:xs) dt = if hasTimetest (getsStop x) (getsStart (head xs)) dt 
-                     then dhelper dt x 
-                     else hasdTime (xs) dtCond 
 
-hasdTimeRule :: [WithRule Scheduled] -> DiffTime -> (UTCTime,UTCTime)
-hasdTime [] dt = (utczero,utczero)
-hasdTime (x:[]) dt = dhelper dt x
-hasdTime (x:xs) dt = if hasTimetest (getsStop event $ x) (getsStart (event $ head xs)) dt 
-                     then dhelper dt x 
-                     else hasdTime (xs) dt
 
-dhelper :: DiffTime -> WithRule Scheduled -> (UTCTime, UTCTime)
-dhelper dt x 
-    | bed < (utctDayTime $ getsStop x) + dt   = (addUTCTime (liftTime (bed - wake)) (UTCTime (utctDay $ getsStop x) (bed)), addUTCTime (liftTime (bed - wake + dt)) (UTCTime (utctDay $ getsStop x) (bed)) )
-    | otherwise                               = (getsStop x, addUTCTime (liftTime dt) (getsStop x) )
+hasdTimeRule ::Opts -> [WithRule Scheduled] -> DiffTime -> (UTCTime,UTCTime)
+hasdTimeRule opts [] dt = (utczero,utczero)
+hasdTimeRule opts (x:[]) dt = dhelper opts dt x
+hasdTimeRule opts (x:xs) dt = if hasTimetest (getsStop . event $ x) (getsStart (event $ head xs)) dt && trule  
+                     then dhelper opts dt x 
+                     else hasdTimeRule opts (xs) dt
+    where trule = case rule x of 
+                     Just s -> freqChecker (pSET. sEvent . event $ x) $ testRRule' s (pSET . sEvent . event $ x)
+                     Nothing ->  True 
 
+dhelper :: Opts -> DiffTime -> WithRule Scheduled -> (UTCTime, UTCTime)
+dhelper opts dt x 
+    | bedh < (utctDayTime . getsStop .event $ x) + dt   = (addUTCTime (liftTime (bedh- wakeh)) (UTCTime (utctDay . getsStop . event $ x) (bedh)), addUTCTime (liftTime (bedh- wakeh + dt)) 
+                                                          (UTCTime (utctDay . getsStop . event $ x) (bedh)) )
+    | otherwise                               = (getsStop . event $ x, addUTCTime (liftTime dt) (getsStop . event $ x) )
+    where bedh = bedO opts
+          wakeh = bedO opts 
 --Add the event to either to state (left - not possible, right - assign time)
-dlAdd :: ([WithRule Scheduled], [WithRule Scheduled]) -> Deadline -> WithRule Scheduled
-dlAdd (l, r) d = if ht == (utczero, utczero) then passevent 
+dlAdd :: Opts -> ([WithRule Scheduled], [WithRule Scheduled]) -> Deadline -> WithRule Scheduled
+dlAdd opt (l, r) d = if ht == (utczero, utczero) then passevent 
                  else addevent
     where deadline      = getdStop d --deadline stored in snd
           duration      = dur $ dEvent $ d 
-          before        = filter (\s -> deadline > (getsStop s)) (sortBy (schDateCompare) r) -- filters events deadline > end of other event
-          ht            = hasdTime before duration
-          passevent     = (WithRule Scheduled (ParseEvent (desc $ dEvent d) (prio $ dEvent d) (pSET $ dEvent d) (dur $ dEvent d)) )
-          addevent      = (WithRule Scheduled (ParseEvent (desc $ dEvent d) (prio $ dEvent d) ht (dur $ dEvent d) ) )
+          before        = filter (\s -> deadline > ((getsStop . event) s)) (sortBy (schDateCompareW) r) -- filters events deadline > end of other event
+          ht            = hasdTimeRule opt before duration
+          passevent     = (WithRule (Scheduled (ParseEvent (desc $ dEvent d) (prio $ dEvent d) (pSET $ dEvent d) (dur $ dEvent d))) Nothing )
+          addevent      = (WithRule (Scheduled (ParseEvent (desc $ dEvent d) (prio $ dEvent d) ht (dur $ dEvent d))) Nothing )
           
 --Assm. list sorted by date, hasTimetest finds a time, if it doesn't it passes. 
-dlSolve :: [Deadline] -> ([WithRule Scheduled],[WithRule Scheduled]) -> ([WithRule Scheduled],[WithRule Scheduled])
-dlSolve dl (l, r) = foldl (\(a,b) x -> condition (a,b) x) (l,r) dl
-    where condition (a,b) x = if (getsStart (adder (a,b) x) == utczero) then (a++[(adder (a,b) x)], b) else (a, b++[(adder (a,b) x)])
-          adder (d,f) y = dlAdd (d,f) y 
+dlSolve :: Opts -> [Deadline] -> ([WithRule Scheduled],[WithRule Scheduled]) -> ([WithRule Scheduled],[WithRule Scheduled])
+dlSolve opt dl (l, r) = foldl (\(a,b) x -> condition (a,b) x) (l,r) dl
+    where condition (a,b) x = if ((getsStart . event $ adder (a,b) x) == utczero) 
+                              then (a ++ [(adder (a,b) x)], b) 
+                              else (a, b ++ [(adder (a,b) x)])
+          adder (d,f) y = dlAdd opt (d,f) (y)
 
-dlSolvet :: [Deadline]
+dlSolvet :: Opts -> [Deadline]
     -> ([WithRule Scheduled], [WithRule Scheduled]) -> [([WithRule Scheduled], [WithRule Scheduled])]
-dlSolvet dl (l, r) = scanl (\(a,b) x -> condition (a,b) x) (l,r) dl
-    where condition (a,b) x= if (getsStart (dlAdd (a,b) x) == utczero) then (a++[(dlAdd (a,b) x)], b) else (a, b++[(dlAdd (a,b) x)])
+dlSolvet opts dl (l, r) = scanl (\(a,b) x -> condition (a,b) x) (l,r) dl
+    where condition (a,b) x= if ((getsStart . event $ (dlAdd opts (a,b) x)) == utczero) then (a++[(dlAdd opts (a,b) x)], b) else (a, b++[(dlAdd opts (a,b) x)])
 
 ---------prioSolve
 
-pCheck :: [Prioritized] -> CState () -> CState ()
-pCheck prio dlstate = put (solved)    --modify (++ prioSolve prio)
+pCheck :: Opts ->[Prioritized] -> CState () -> CState ()
+pCheck opts prio dlstate = put (solved)    --modify (++ prioSolve prio)
     where sorted = sortBy priopCompare (prio)
-          solved = pSolve sorted (execState dlstate ([],[])) 
+          solved = pSolve opts sorted (execState dlstate ([],[])) 
 
-haspTime :: [WithRule Scheduled] -> DiffTime -> (UTCTime,UTCTime) 
-haspTime [] dt = (utczero,utczero)
-haspTime [x] dt = dhelper dt x
-haspTime (x:xs) dt = if hasTimetest (getsStop x) (getsStart (head xs)) dt then dhelper dt x else haspTime (xs) dt
+haspTime :: Opts ->[WithRule Scheduled] -> DiffTime -> (UTCTime,UTCTime) 
+haspTime opts [] dt = (utczero,utczero)
+haspTime opts [x] dt = phelper opts dt x
+haspTime opts (x:xs) dt = if hasTimetest (getsStop . event $ x) (getsStart (event $ head xs)) dt then phelper opts dt x else haspTime opts (xs) dt
 
-phelper :: DiffTime -> WithRule Scheduled -> (UTCTime, UTCTime)
-phelper dt x = if bed < (utctDayTime $ getsStop event $ x)+dt --if it's past bedtime, add the event in the morning
-               then (addUTCTime (liftTime (bed - wake)) (UTCTime (utctDay $ getsStop event $ x) (bed)), addUTCTime (liftTime (bed - wake + dt)) (UTCTime (utctDay $ getsStop x) (bed)) )
-               else (getsStop x, addUTCTime (liftTime dt) (getsStop x) ) 
+phelper :: Opts -> DiffTime -> WithRule Scheduled -> (UTCTime, UTCTime)
+phelper opts dt x = if bedh < (utctDayTime . getsStop . event $ x)+dt --if it's past bedtime, add the event in the morning
+               then (addUTCTime (liftTime (bedh - wakeh)) (UTCTime (utctDay . getsStop . event $  x) (bedO opts)), addUTCTime (liftTime (bedh - wakeh + dt)) (UTCTime (utctDay . getsStop . event $ x) (bedh)) )
+               else (getsStop . event $ x, addUTCTime (liftTime dt) (getsStop .event $ x) ) 
+    where bedh = bedO opts
+          wakeh = wakeO opts
 
-pAdd :: ([WithRule Scheduled],[WithRule Scheduled]) -> Prioritized -> WithRule Scheduled
-pAdd (l,r) p = addevent
+pAdd :: Opts -> ([WithRule Scheduled],[WithRule Scheduled]) -> Prioritized -> WithRule Scheduled
+pAdd opts (l,r) p = addevent
                     where duration      = dur $ pEvent $ p
-                          giventime     = haspTime r duration
-                          addevent      = (WithRule Scheduled (ParseEvent (desc $ pEvent p) (prio $ pEvent p) giventime (dur $ pEvent p)) Nothing )
+                          giventime     = haspTime opts r duration
+                          addevent      = (WithRule (Scheduled (ParseEvent (desc $ pEvent p) (prio $ pEvent p) giventime (dur $ pEvent p))) Nothing )
 
 --Just adds everything in turn    
-pSolve :: [Prioritized] -> ([WithRule Scheduled],[WithRule Scheduled]) -> ([WithRule Scheduled], [WithRule Scheduled])
-pSolve pr (w, s) = foldl (\(l, r) x -> (l, r ++ [pAdd (l, r) x])) (w, s) pr  
+pSolve :: Opts ->[Prioritized] -> ([WithRule Scheduled],[WithRule Scheduled]) -> ([WithRule Scheduled], [WithRule Scheduled])
+pSolve opts pr (w, s) = foldl (\(l, r) x -> (l, r ++ [pAdd opts (l, r) x])) (w, s) pr  
 
 ----todoSolve
-tdCheck :: [Todo] -> CState () -> CState ()
-tdCheck td pstate = put (solved) 
+tdCheck :: Opts -> [Todo] -> CState () -> CState ()
+tdCheck opts td pstate = put (solved) 
     where sorted = sortBy todopCompare (td)
-          solved = tdSolve sorted (execState pstate ([],[]))
+          solved = tdSolve opts sorted (execState pstate ([],[]))
 
-hastdTime :: [WithRule Scheduled] -> DiffTime -> (UTCTime,UTCTime) 
-hastdTime [] dt = (utczero,utczero)
-hastdTime [x] dt = thelper dt x
-hastdTime (x:xs) dt = if hasTimetest (getsStop event $  x) (getsStart (event $ head xs)) dt then thelper dt x else hastdTime (xs) dt
+hastdTime :: Opts -> [WithRule Scheduled] -> DiffTime -> (UTCTime,UTCTime) 
+hastdTime opts [] dt = (utczero,utczero)
+hastdTime opts [x] dt = thelper opts dt x
+hastdTime opts (x:xs) dt = if hasTimetest (getsStop . event $  x) (getsStart (event $ head xs)) dt then thelper opts dt x else hastdTime opts (xs) dt
 
-thelper :: DiffTime -> WithRule Scheduled -> (UTCTime, UTCTime)
-thelper dt x = if bed < (utctDayTime $ getsStop x)+dt --if it's past bedtime, add the event in the morning
-              then (addUTCTime (liftTime (bed - wake)) (UTCTime (utctDay $ getsStop x) (bed)), addUTCTime (liftTime (bed - wake + dt)) (UTCTime (utctDay $ getsStop x) (bed)) )
-              else (getsStop x, addUTCTime (liftTime dt) (getsStop x) ) 
-
-tdAdd :: ([WithRule Scheduled], [WithRule Scheduled]) -> Todo -> WithRule Scheduled
-tdAdd (l, r) td =  (WithRule Scheduled (ParseEvent (desc $ tEvent td) (prio $ tEvent td) giventime (dur $ tEvent td)) Nothing )
+thelper :: Opts -> DiffTime -> WithRule Scheduled -> (UTCTime, UTCTime)
+thelper opt dt x = if bedh < (utctDayTime . getsStop . event $ x)+dt --if it's past bedtime, add the event in the morning
+              then (addUTCTime (liftTime (bedh - wakeh)) (UTCTime (utctDay . getsStop . event $  x) (bedh)), addUTCTime (liftTime (bedh- wakeh + dt)) (UTCTime (utctDay . getsStop . event $  x) bedh) )
+              else (getsStop . event $ x, addUTCTime (liftTime dt) (getsStop . event $  x) ) 
+    where bedh = bedO opt
+          wakeh = wakeO opt
+          
+tdAdd :: Opts -> ([WithRule Scheduled], [WithRule Scheduled]) -> Todo -> WithRule Scheduled
+tdAdd opts (l, r) td = (WithRule (Scheduled (ParseEvent (desc $ tEvent td) (prio $ tEvent td) giventime (dur $ tEvent td))) Nothing )
                     where duration      = dur $ tEvent $ td
-                          giventime     = hastdTime r duration 
+                          giventime     = hastdTime opts r duration 
 
-tdSolve :: [Todo] -> ([WithRule Scheduled], [WithRule Scheduled]) ->  ([WithRule Scheduled], [WithRule Scheduled])
-tdSolve todos (w, s) = foldl (\(l, r) x -> (l, r ++ [tdAdd (l, r) x])) (w, s) todos  
+tdSolve :: Opts -> [Todo] -> ([WithRule Scheduled], [WithRule Scheduled]) ->  ([WithRule Scheduled], [WithRule Scheduled])
+tdSolve opts todos (w, s) = foldl (\(l, r) x -> (l, r ++ [tdAdd opts (l, r) x])) (w, s) todos  
 
 stateToSols :: ([WithRule Scheduled], [WithRule Scheduled]) ->  ([String], [String])
-stateToSols = over both (fmap show)
+stateToSols = over both (fmap $ show . event )
 
 --TODO Pevent -> Solver types -> Vevent -> Print
