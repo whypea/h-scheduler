@@ -12,7 +12,7 @@ import qualified Control.Monad.Trans.Class as Trans
 import Events
 import Common
 import InputParsers
-import Control.Monad.Trans.State
+import Control.Monad.Trans.State ( execState, put, State )
 import Control.Monad.Trans.Reader
 import Control.Applicative (Const)
 import Control.Lens
@@ -23,13 +23,54 @@ import Data.List (nub, nubBy, sortBy, groupBy, sort)
 import Data.Char (ord)
 -- import Data.Text
 import Data.Time
+import GHC (XAbsBinds)
 
 type CState a = State ([WithRule Scheduled], [WithRule Scheduled]) a --Conflicts/not conflicts
---data RecurR = Recur [(UTCTime, UTCTime)]
 
--- initCstate :: CState ()
--- initCstate = put ([],[])
+----MAIN SOLVER
+econstrSolve :: Opts -> [WithRule Ordered] -> [Deadline] -> [Prioritized] -> [Todo] -> ([WithRule Scheduled],[WithRule Scheduled]) 
+econstrSolve opts ord dl pr td = execState (tdCheck opts td $ pCheck opts pr $ dcCheck opts dl $ ocCheck opts ord) ([],[])
 
+schToVevent :: Scheduled -> Vevent 
+schToVevent sch = Vevent (DT (getsStart sch)) (UID " ") PUBLIC (DateStart $ getsStart sch) (DateStop $ Just (getsStop sch)) 
+                   (Duration Nothing) (Desc $ Just (desc .sEvent $ sch)) (Summary $ Just (desc .sEvent $ sch)) (Priority (Just (prio . sEvent $ sch))) (EvtSequence Nothing) (Just TRANSPARENT) Nothing
+
+stateToEventR :: ([WithRule Scheduled], [WithRule Scheduled]) -> [Vevent]
+stateToEventR (l, r) = fmap (schToVevent .event)  r
+
+stateToEventL :: ([WithRule Scheduled], [WithRule Scheduled]) -> [Vevent]
+stateToEventL (l, r) = fmap (schToVevent . event) l
+
+eventsToCalendar :: [Vevent] -> Vcalendar
+eventsToCalendar evts = Vcalendar (Prod "") (Version "2") GREGORIAN (TZ (TimeZone 0 False "UTC")) evts 
+
+solveToCalendarMake :: Opts -> [WithRule Ordered] -> [Deadline] -> [Prioritized] -> [Todo] -> Vcalendar 
+solveToCalendarMake opts ord dl pr td = eventsToCalendar . stateToEventR $ econstrSolve opts ord dl pr td
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+liftTime :: DiffTime -> NominalDiffTime
 liftTime = fromRational . toRational
 
 schDateCompare :: Scheduled -> Scheduled -> Ordering
@@ -68,9 +109,6 @@ schDateCompareW :: WithRule Scheduled -> WithRule Scheduled -> Ordering
 schDateCompareW p1 p2 = compare ((pSET . sEvent .event $ p1)^._2) ((pSET . sEvent . event $ p2)^._2)
 
 
---TODO list of times an event should repeat, for scheduled
---TODO put this into the main solver
---VrRule gives the repeat, 
 testRRule' :: VrRule -> (UTCTime, UTCTime) -> [(UTCTime, UTCTime)]
 testRRule' vrr start  = zip (utclist $ fst start) (utclist $ snd start)  
     where freqAdd date = freqAdder (rFreq vrr) date (rInterval vrr)
@@ -85,21 +123,16 @@ testRRule' vrr start  = zip (utclist $ fst start) (utclist $ snd start)
                           else [utctDayTime date, utctDayTime $ freqAdd date.. secondsToDiffTime 75600]
 
 freqAdder :: Vrfreq -> UTCTime -> Interval -> UTCTime
-freqAdder (HOURLY) s (Interval (Just n))   = s{utctDayTime = (utctDayTime s + (secondsToDiffTime $ 3600*n))} 
-freqAdder (DAILY)  s (Interval (Just n))   = UTCTime (addDays n (utctDay s)) (utctDayTime s)
-freqAdder (WEEKLY) s (Interval (Just n))   = UTCTime (addDays (7*n) (utctDay s)) (utctDayTime s)
-freqAdder (MONTHLY) s (Interval (Just n))  = UTCTime (addGregorianMonthsClip n (utctDay s)) (utctDayTime s)
-freqAdder (YEARLY)  s (Interval (Just n))  = UTCTime  (addGregorianYearsClip n (utctDay s)) (utctDayTime s)
+freqAdder HOURLY s (Interval (Just n))   = s{utctDayTime = (utctDayTime s + (secondsToDiffTime $ 3600*n))} 
+freqAdder DAILY  s (Interval (Just n))   = UTCTime (addDays n (utctDay s)) (utctDayTime s)
+freqAdder WEEKLY s (Interval (Just n))   = UTCTime (addDays (7*n) (utctDay s)) (utctDayTime s)
+freqAdder MONTHLY s (Interval (Just n))  = UTCTime (addGregorianMonthsClip n (utctDay s)) (utctDayTime s)
+freqAdder YEARLY  s (Interval (Just n))  = UTCTime  (addGregorianYearsClip n (utctDay s)) (utctDayTime s)
 
---TODO Could be rewritten to return the date?
 freqChecker :: (UTCTime, UTCTime) -> [(UTCTime, UTCTime)] -> Bool
 freqChecker t rlist = all (== True) $ map (timeoverlap t) rlist
 
 ----SOLVERS
-----MAIN SOLVER
-econstrSolve :: Opts -> [WithRule Ordered] -> [Deadline] -> [Prioritized] -> [Todo] -> ([WithRule Scheduled],[WithRule Scheduled]) 
-econstrSolve opts ord dl pr td= execState (tdCheck opts td $ pCheck opts pr $ dcCheck opts dl $ ocCheck opts ord) ([],[])
-
 ----ordSolve
 
 --Finds amount of collisions in the dates
@@ -110,7 +143,7 @@ ordGroups opts ordered = foldl (\(l, r) x -> if all (timeCompare opts $ oEvent $
                      else (l++[x], r) ) ([], [head ordered]) (tail ordered)
     -- where sord = sortBy (ordered)
 
---TODO: Current functions will (should) always assign times (with the exception of clashing ordered and overdue deadline)
+-- Current functions will (should) always assign times (with the exception of clashing ordered and overdue deadline)
 --      as it assigns them greedily on any available timeslots, without any higher bound. 
 ocCheck ::Opts -> [WithRule Ordered] -> CState ()
 ocCheck opts ord = put (fmap retype (fst $ colGroups), fmap retype (snd $ colGroups) )
@@ -126,13 +159,8 @@ dcCheck opts dl ostate = put (solved)
  where sorted = sortBy deadpCompare dl   
        solved = dlSolve opts sorted (execState ostate ([],[]))
 
-edcCheck ::Opts -> [WithRule Ordered]  -> [Deadline] -> ([WithRule Scheduled], [WithRule Scheduled])
-edcCheck opts ord dl = execState (dcCheck opts dl $ ocCheck opts ord) ([],[])
-
 --Should always find a spot for it, since any events before the deadline are filtered out
---Using utczero as empty list
-
-
+--Using utczero as empty datetime
 hasdTimeRule ::Opts -> [WithRule Scheduled] -> DiffTime -> (UTCTime,UTCTime)
 hasdTimeRule opts [] dt = (utczero,utczero)
 hasdTimeRule opts (x:[]) dt = dhelper opts dt x

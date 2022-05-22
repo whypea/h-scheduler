@@ -45,6 +45,8 @@ instance (Show a) => Show (WithRule a) where
     show (WithRule a Nothing) = show a
 
 wrnoRule a= WithRule a Nothing
+wrvrrtest a= WithRule a vrtest
+
 
 newtype Scheduled = Scheduled {sEvent :: ParseEvent}         --
 newtype Ordered = Ordered {oEvent :: ParseEvent}             --Set date, eg. meetings   
@@ -53,7 +55,7 @@ newtype Prioritized = Prioritized {pEvent :: ParseEvent}     --timed tasks with 
 newtype Todo  = Todo {tEvent :: ParseEvent}                  --Any time, priority has lower pecedence than above
 
 instance Show ParseEvent where 
-    show (ParseEvent event prio pSet dur) = show prio ++ "-" ++ show (pSet^._1) ++ "-" ++ show (pSet^._2) ++ "-" ++ show dur -- ++ show (pget $ rule)
+    show (ParseEvent event prio pSet dur) =show event ++ show prio ++ "-" ++ show (pSet^._1) ++ "-" ++ show (pSet^._2) ++ "-" ++ show dur -- ++ show (pget $ rule)
 
 instance Show Scheduled where
     show (Scheduled s) = show s
@@ -139,7 +141,7 @@ data DateStart = DateStart UTCTime
 
 --TODO make the correct formatting with formatTime
 instance Show (DateStart) where
-    show (DateStart a) = "DTSTART:" ++ formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a ++ "\n"
+    show (DateStart a) = "DTSTART:" ++ formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a
 
 instance TextShow DateStart where 
     showb a = fromString (show a) 
@@ -147,7 +149,7 @@ instance TextShow DateStart where
 data DateStop = DateStop (Maybe UTCTime) 
 
 instance Show (DateStop) where
-    show (DateStop (Just a)) = "DTSTOP:" ++ formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a    ++ "\n"
+    show (DateStop (Just a)) = "DTSTOP:" ++ formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a
     show (DateStop (Nothing)) = ""
 
 instance TextShow DateStop where
@@ -156,7 +158,7 @@ instance TextShow DateStop where
 data Desc = Desc (Maybe String)
 
 instance Show (Desc) where
-    show (Desc (Just a)) = "DESCRIPTION:" ++ show a ++ "\n"
+    show (Desc (Just a)) = "DESCRIPTION:" ++ show a
     show (Desc (Nothing))  = ""
 
 instance TextShow Desc where
@@ -165,7 +167,7 @@ instance TextShow Desc where
 data Summary = Summary (Maybe String)
 
 instance Show (Summary) where
-    show (Summary (Just a)) = "SUMMARY:" ++ show a ++ "\n"
+    show (Summary (Just a)) = "SUMMARY:" ++ show a
     show (Summary (Nothing))  = ""
 
 instance TextShow Summary where
@@ -186,7 +188,7 @@ instance TextShow EClass where
 data Priority = Priority (Maybe Int) 
 
 instance Show Priority where 
-    show (Priority (Just a)) = "PRIORITY:" ++ show a ++ "\n"
+    show (Priority (Just a)) = "PRIORITY:" ++ show a
     show (Priority Nothing) = "" 
 
 instance TextShow Priority where
@@ -204,7 +206,7 @@ instance TextShow EvtSequence where
 data Duration = Duration (Maybe DiffTime)
     
 instance Show Duration where
-    show (Duration (Just a)) = "DURATION:" ++ show a 
+    show (Duration (Just a)) = "DURATION:" ++ show a
     show (Duration (Nothing)) = ""
 
 instance TextShow Duration where
@@ -216,14 +218,14 @@ instance TextShow Duration where
 instance Show Vevent where
     show NoEvent = "No Event"
     show (Vevent stamp uid eclass start (DateStop Nothing) duration desc sum prio seq timet rrule) =
-         "BEGIN: VEVENT\n" ++ show stamp ++ "\n" ++ show uid ++ "\n" 
-         ++ show eclass ++ ";" ++ show start ++ ";" ++ show duration ++ "\n" ++ show desc ++ "\n"  ++ show prio ++ "\n" ++ show seq ++ "\n"
-         ++ show timet ++ "\n" ++ "RECUR:" ++ show rrule ++ "\n" ++ "END:VEVENT"       
+        unlines ["BEGIN: VEVENT" ,show stamp, show uid, 
+         show eclass,";",show start,";",show duration,show desc ,show prio,show seq
+        ,show timet,"RECUR:",show rrule,"END:VEVENT"]       
     show (Vevent stamp uid eclass start stop (Duration Nothing) desc sum prio seq timet rrule) =
-         "BEGIN: VEVENT\n" ++ show stamp ++ "\n" ++  "UID:" ++ show uid ++ "\n" ++ show eclass ++ ";\n" ++ show start ++ "\n"
-         ++ show stop ++ "\n"  ++ show desc ++ "\n" ++
-         show prio ++ "\n"  ++ show seq ++ "\n" ++ show timet ++ "\n" 
-         ++ "RECUR:" ++ show rrule ++ "\n" ++ "END:VEVENT"
+        unlines ["BEGIN: VEVENT",show stamp, "UID:",show uid,show eclass,";",show start
+        ,show stop ,show desc,show prio ,show seq,show timet ,"RECUR:",show rrule,"END:VEVENT"]
+         
+        
 
 instance TextShow Vevent where
     showb (Vevent stamp uid eclass start (DateStop Nothing) duration desc sum prio seq timet rrule) = showb stamp <> showb uid <> showb eclass<> showb start 
@@ -364,8 +366,8 @@ instance Show TZ where
 -- 
 instance Show Vcalendar where
     show (Vcalendar prodid version scale tz events) =
-     "BEGIN:VCALENDAR\n" ++ show prodid ++ "VERSION:" ++ "\n" ++ "SCALE=" ++ show scale ++ "\n" 
-     ++ "TIMEZONE="++ show tz ++ "\n"++ show version ++ "\n" ++ printList events ++ "\n" ++ "END:VCALENDAR"
+   unlines ["BEGIN:VCALENDAR",show prodid,"VERSION:","SCALE=",show scale, 
+    ,"TIMEZONE=" ,show tz, show version,printList events,"END:VCALENDAR"]
 
 printList :: Show a => [a] -> String
 printList [] = ""

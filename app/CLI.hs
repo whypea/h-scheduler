@@ -37,6 +37,7 @@ import Control.Monad.Trans.Reader ( ask, runReader )
 import Options.Applicative
 import qualified Options.Applicative as O
 import qualified Options.Applicative.Common as O
+import Solver (econstrSolve)
 
 
 --A cleaner way to do command courtesy of 
@@ -46,17 +47,17 @@ command' label description parser =
   O.command label (O.info (parser <**> O.helper) (O.progDesc description))
 
 
-orderedlist :: String -> (Either (ParseErrorBundle String Void) Ordered)
-orderedlist = runParser getOrdered "" --(runParser getOrdered "") 
+orderedlist :: String -> (Either (ParseErrorBundle String Void) [Ordered])
+orderedlist = runParser getOrderedList "" --(runParser getOrdered "") 
 
-deadlinelist :: String -> (Either (ParseErrorBundle String Void) Deadline)  
-deadlinelist =  runParser getDeadline ""--(runParser getDeadline "") 
+deadlinelist :: String -> (Either (ParseErrorBundle String Void) [Deadline])  
+deadlinelist =  runParser getDeadlineList ""--(runParser getDeadline "") 
 
-prioritylist :: String -> (Either (ParseErrorBundle String Void) Prioritized)
-prioritylist =  runParser getPrioritized "" --(runParser getPrioritized "")  
+prioritylist :: String -> (Either (ParseErrorBundle String Void) [Prioritized])
+prioritylist =  runParser getPrioritizedList "" --(runParser getPrioritized "")  
 
-todolist :: String -> (Either (ParseErrorBundle String Void) Todo)
-todolist =  runParser getTodo ""
+todolist :: String -> (Either (ParseErrorBundle String Void) [Todo])
+todolist =  runParser getTodoList ""
 
 actCommands :: O.Parser ActualCommands
 actCommands =  O.subparser 
@@ -112,44 +113,54 @@ cli :: IO ()
 cli = do 
     go <- O.execParser (O.info commandoptParser (O.fullDesc <> O.progDesc "Description")) 
     case go of 
-        ACO MakeFile opts  -> do let a = makeICS (filename opts)
+        ACO MakeFile opts  -> do let make = makeICS (filename opts)
+                                 workWithHandle opts make
                                  return ()
-        ACO EditFile opts   -> do let s = editICS (filename opts)
-                                  a <- s
+        ACO EditFile opts   -> do let edit = editICS (filename opts)
+                                  a <- edit
                                   case a of 
-                                    Just h   -> do k <- workWithHandle (fromJust "" s)
+                                    Just h   -> do k <- workWithHandle opts (fromJust <$> edit)
                                                    return ()
                                     Nothing  -> do putStrLn $ "No file named " ++ (filename opts)   
                                                    return ()
     return ()
 
-workWithHandle :: IO Handle -> IO Handle
-workWithHandle hdl = do h <- hdl
-                        print ( "Add a list of events with a set date, eg. meetings \n Format:  ")
-                        ord <- getLine
-                        case orderedlist ord of 
-                            Left bdl -> print (errorBundlePretty bdl) 
-                                        return hdl
-                            Right ls -> hPrint hdl ls 
-                         
-                --                 print ("Add tasks with a certain date to finish by")
-                --                 return hdl
-                -- -- dline <- getLine
-                -- case deadlinelist dline of 
-                --     Left bdl -> print (errorBundlePretty bdl)
-                --                 return hdl
-                --     Right ls -> hPrint hdl ls
-                -- print ("Add tasks with some priority")
-                -- prio <- getLine
-                -- case prioritylist prio of 
-                --     Left bdl -> print (errorBundlePretty bdl)
-                --     Right ls -> hPrint hdl ls
-                -- print ("Add tasks to be done sometime")
-                -- todol <- getLine
-                -- case todolist todol of 
-                --     Left bdl -> print (errorBundlePretty bdl)
-                --                 return h
-                --     Right ls -> hPrint ls
+-- workWithHandle2 :: Opts -> IO Handle -> IO Handle
+-- workWithHandle2 opts hdl = do h <- hdl
+--                          print ( "Add a list of events with a set date, eg. meetings \n Format:  ")
+--                          ord <- getLine
+--                          return h
+
+--econstrSolve .
+
+workWithHandle :: Opts ->  IO Handle -> IO Handle
+workWithHandle opts hdl = do h <- hdl
+                             print ( "Add a list of events with a set date, eg. meetings \n Format:  ")
+                             ord <- getLine
+                             case orderedlist ord of 
+                                Left bdl  -> do print (errorBundlePretty bdl )
+                                                return h
+                                Right ols -> do let order = ols 
+                                                print ("Add tasks with a certain date to finish by")
+                                                dline <- getLine
+                                                case deadlinelist dline of 
+                                                    Left bdl -> do print (errorBundlePretty bdl)
+                                                                   return h
+                                                    Right ls -> do let dll = ls
+                                                                   print ("Add tasks with some priority")
+                                                                   prio <- getLine
+                                                                   case prioritylist prio of 
+                                                                        Left bdl -> do 
+                                                                                       print (errorBundlePretty bdl)
+                                                                                       return h
+                                                                        Right ls -> do let prl = ls
+                                                                                       print ("Add tasks to be done sometime")
+                                                                                       todol <- getLine
+                                                                                       case todolist todol of 
+                                                                                        Left bdl -> do print (errorBundlePretty bdl)
+                                                                                                       return h
+                                                                                        Right ls -> do let tdl = ls
+                                                                                                       return h 
 
 -- parse :: O.Parser a
 -- parse = O.subparser (O.command "string" (O.info O.auto O.parseCommand ))
