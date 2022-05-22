@@ -45,14 +45,7 @@ command' :: String -> String -> O.Parser a -> O.Mod O.CommandFields a
 command' label description parser =
   O.command label (O.info (parser <**> O.helper) (O.progDesc description))
 
--- read the name value
--- createFile :: InsideCommands 
--- createFile = CreateFile $ makeICS
 
--- editFile :: InsideCommands
--- editFile = EditFile $ editICS 
-
---No need to do these as single type
 orderedlist :: String -> (Either (ParseErrorBundle String Void) Ordered)
 orderedlist = runParser getOrdered "" --(runParser getOrdered "") 
 
@@ -111,55 +104,52 @@ commandoptParser :: O.Parser ACO
 commandoptParser = runA $ proc () -> do 
                        opts <- asA topOptions -< ()
                        cmds <- asA actCommands -< ()
-
                        A O.helper -< ACO cmds opts      --makes the combined type
 
 --TODO Actual control structure with options, not just tests
---TODO Add the solvers into this, reading in bed, wake, then 
+--TODO Add the solvers into this, reading in bed, wake etc. 
 cli :: IO () 
 cli = do 
     go <- O.execParser (O.info commandoptParser (O.fullDesc <> O.progDesc "Description")) 
     case go of 
-        ACO MakeFile opts  -> do a <- makeICS (filename opts)
-                                 state a
+        ACO MakeFile opts  -> do let a = makeICS (filename opts)
                                  return ()
-        ACO EditFile opts   -> do h <- editICS (filename opts)
-                                  case h of 
-                                      Just h  -> workWithHandle h
-                                      Nothing -> print ("Nothing here!")   
-                                      return ()
-        -- ACO (PrioritizedList a) o -> do
-        --     print (a)    
-        --     print(filename o)        
-        -- ACO (DeadlineList a) o -> do
-        --     print (a)
-        -- ACO (TodoList a) o -> do
-        --     print (a)
+        ACO EditFile opts   -> do let s = editICS (filename opts)
+                                  a <- s
+                                  case a of 
+                                    Just h   -> do k <- workWithHandle (fromJust "" s)
+                                                   return ()
+                                    Nothing  -> do putStrLn $ "No file named " ++ (filename opts)   
+                                                   return ()
     return ()
 
-workWithHandle :: Handle -> IO Handle
-workWithHandle hdl = do 
-                print ( "Add a list of events with a set date, eg. meetings")
-                ord <- getLine
-                case orderedlist ord of 
-                    Left bdl -> print (errorBundlePretty bdl)
-                    Right ls -> hPrint hdl ls  
-                print ("Add tasks with a certain date to finish by")
-                dline <- getLine
-                case deadlinelist dline of 
-                    Left bdl -> print (errorBundlePretty bdl)
-                                return hdl
-                    Right ls -> hPrint hdl ls
-                print ("Add tasks with some priority")
-
-                case prioritylist prio of 
-                    Left bdl -> print (errorBundlePretty bdl)
-                    Right ls -> hPrint hdl ls
-                print ("Add tasks to be done sometime")
-                case todolist todol of 
-                    Left bdl -> print (errorBundlePretty bdl)
-                                return h
-                    Right ls -> hPrint ls
+workWithHandle :: IO Handle -> IO Handle
+workWithHandle hdl = do h <- hdl
+                        print ( "Add a list of events with a set date, eg. meetings \n Format:  ")
+                        ord <- getLine
+                        case orderedlist ord of 
+                            Left bdl -> print (errorBundlePretty bdl) 
+                                        return hdl
+                            Right ls -> hPrint hdl ls 
+                         
+                --                 print ("Add tasks with a certain date to finish by")
+                --                 return hdl
+                -- -- dline <- getLine
+                -- case deadlinelist dline of 
+                --     Left bdl -> print (errorBundlePretty bdl)
+                --                 return hdl
+                --     Right ls -> hPrint hdl ls
+                -- print ("Add tasks with some priority")
+                -- prio <- getLine
+                -- case prioritylist prio of 
+                --     Left bdl -> print (errorBundlePretty bdl)
+                --     Right ls -> hPrint hdl ls
+                -- print ("Add tasks to be done sometime")
+                -- todol <- getLine
+                -- case todolist todol of 
+                --     Left bdl -> print (errorBundlePretty bdl)
+                --                 return h
+                --     Right ls -> hPrint ls
 
 -- parse :: O.Parser a
 -- parse = O.subparser (O.command "string" (O.info O.auto O.parseCommand ))

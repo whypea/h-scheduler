@@ -40,6 +40,12 @@ data ParseEvent = ParseEvent
     } 
 data WithRule a = WithRule {event :: a, rule :: Maybe VrRule}
 
+instance (Show a) => Show (WithRule a) where
+    show (WithRule a (Just rule)) = show a ++ show rule
+    show (WithRule a Nothing) = show a
+
+wrnoRule a= WithRule a Nothing
+
 newtype Scheduled = Scheduled {sEvent :: ParseEvent}         --
 newtype Ordered = Ordered {oEvent :: ParseEvent}             --Set date, eg. meetings   
 newtype Deadline = Deadline {dEvent :: ParseEvent}           --Certain date to finish by, 
@@ -73,6 +79,7 @@ data Opts = Opts {
     --,command  :: ActualCommands 
 } 
     deriving Show 
+defaultopts = Opts "MyCalendar" "@h-scheduler" "20220422" "07:00" "22:00"
 
 data InsideCommands = OrderedList  (Either (ParseErrorBundle String Void) Ordered)              --(O.ReadM Ordered)
                     | DeadlineList (Either (ParseErrorBundle String Void) Deadline)             
@@ -99,6 +106,7 @@ data Vevent = NoEvent | Vevent
     ,eDTEnd   :: DateStop       --P
     ,eDuration :: Duration      --P
     ,eDescription :: Desc       --P? ()
+    ,eSummary :: Summary
     ,ePrio :: Priority          --P
     ,eSeq :: EvtSequence        --P
     ,eTimeTrans :: Maybe Transp --P 
@@ -154,6 +162,15 @@ instance Show (Desc) where
 instance TextShow Desc where
     showb a = fromString (show a)  
 
+data Summary = Summary (Maybe String)
+
+instance Show (Summary) where
+    show (Summary (Just a)) = "SUMMARY:" ++ show a ++ "\n"
+    show (Summary (Nothing))  = ""
+
+instance TextShow Summary where
+    showb a = fromString (show a)  
+
 data EClass = PUBLIC | PRIVATE | CONFIDENTIAL | IANA String | XNAME String 
 
 instance Show (EClass) where 
@@ -193,29 +210,26 @@ instance Show Duration where
 instance TextShow Duration where
     showb a = fromString (show a)  
 
--- instance Show Duration where 
---     show (Duration (Just a)) = 
-
 -- concat $ zipWith (++) (fmap show [eDTstamp, eUID ,eClass,eDTStart,eDescription,ePrio,eSeq,eTimeTrans,eRecur,eAlarm,eRRule])
 -- ["DATETIME","UID:", "CLASS:", "DTSTART:", "DESCRIPTION", "PRIORITY:", "SEQUENCE:", "TRANSP:", "RECUR:", "ALARM:", "RRULE:"]--TODO
 
 instance Show Vevent where
     show NoEvent = "No Event"
-    show (Vevent stamp uid eclass start (DateStop Nothing) duration desc prio seq timet rrule) =
+    show (Vevent stamp uid eclass start (DateStop Nothing) duration desc sum prio seq timet rrule) =
          "BEGIN: VEVENT\n" ++ show stamp ++ "\n" ++ show uid ++ "\n" 
          ++ show eclass ++ ";" ++ show start ++ ";" ++ show duration ++ "\n" ++ show desc ++ "\n"  ++ show prio ++ "\n" ++ show seq ++ "\n"
          ++ show timet ++ "\n" ++ "RECUR:" ++ show rrule ++ "\n" ++ "END:VEVENT"       
-    show (Vevent stamp uid eclass start stop (Duration Nothing) desc prio seq timet rrule) =
+    show (Vevent stamp uid eclass start stop (Duration Nothing) desc sum prio seq timet rrule) =
          "BEGIN: VEVENT\n" ++ show stamp ++ "\n" ++  "UID:" ++ show uid ++ "\n" ++ show eclass ++ ";\n" ++ show start ++ "\n"
          ++ show stop ++ "\n"  ++ show desc ++ "\n" ++
          show prio ++ "\n"  ++ show seq ++ "\n" ++ show timet ++ "\n" 
          ++ "RECUR:" ++ show rrule ++ "\n" ++ "END:VEVENT"
 
 instance TextShow Vevent where
-    showb (Vevent stamp uid eclass start (DateStop Nothing) duration desc prio seq timet rrule) = showb stamp <> showb uid <> showb eclass<> showb start 
+    showb (Vevent stamp uid eclass start (DateStop Nothing) duration desc sum prio seq timet rrule) = showb stamp <> showb uid <> showb eclass<> showb start 
                                                                                                  <> showb (DateStop Nothing) <> showb duration <> showb desc 
                                                                                                  <> showb prio <> showb seq  <> showb timet <> showb (fromString $ show rrule) 
-    showb (Vevent stamp uid eclass start stop (Duration Nothing) desc prio seq timet rrule) = showb stamp <> showb uid <> showb eclass<> showb start 
+    showb (Vevent stamp uid eclass start stop (Duration Nothing) desc sum prio seq timet rrule) = showb stamp <> showb uid <> showb eclass<> showb start 
                                                                                                  <> showb (DateStop Nothing) <> showb (Duration Nothing) <> showb desc 
                                                                                                  <> showb prio <> showb seq  <> showb timet <> showb (fromString $ show rrule)                                                                                            
 
@@ -231,6 +245,12 @@ data VrRule =  NoRule | VrRule   --TODO: NoRule for testing
     ,rByYearDay :: YearDay     --P (Integer)
     ,rByWeekNo :: WeekNo       --P (Integer)
     }
+
+
+
+defvr :: VrRule
+defvr = VrRule (DAILY) (Until Nothing) (Countr Nothing) (Interval Nothing) (ByMonth Nothing) (ByDay Nothing) (MonthDay Nothing) (YearDay Nothing) (WeekNo Nothing)
+ 
 
 --TODO Generalise the show instances
 -- data MShow (a :: Maybe b) where
@@ -305,9 +325,9 @@ instance Show WeekNo where
 instance Show VrRule where
     show (NoRule) = "No Rule"
     show (VrRule freq until (Countr Nothing) interval mon day md yd wn) =       --
-     show freq ++ show until ++ show interval ++ show mon ++ show day ++ show md ++ show yd ++ show wn 
+     unwords [show freq, show until, show interval, show mon, show day, show md, show yd, show wn] 
     show (VrRule freq (Until Nothing) reoccur interval mon day md yd wn) =
-     show freq ++ show reoccur ++ show interval ++ show mon ++ show day  ++ show md ++ show yd ++ show wn 
+     unwords [show freq, show reoccur, show interval, show mon, show day, show md, show yd, show wn]
     -- show (VrRule freq (Until Nothing) (Countr Nothing) interval mon day _ _ _) =
     --  show freq  ++ show interval ++ show mon ++ show day
     show VrRule{..} = ""
