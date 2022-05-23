@@ -45,8 +45,6 @@ instance (Show a) => Show (WithRule a) where
     show (WithRule a Nothing) = show a
 
 wrnoRule a= WithRule a Nothing
-wrvrrtest a= WithRule a vrtest
-
 
 newtype Scheduled = Scheduled {sEvent :: ParseEvent}         --
 newtype Ordered = Ordered {oEvent :: ParseEvent}             --Set date, eg. meetings   
@@ -75,13 +73,13 @@ instance Show Todo where
 data Opts = Opts {
      filename      :: String
     ,uidsuffix     :: String
-    ,calendarStart :: String
+    -- ,calendarStart :: String
     ,wake          :: String
     ,bed           :: String
     --,command  :: ActualCommands 
 } 
     deriving Show 
-defaultopts = Opts "MyCalendar" "@h-scheduler" "20220422" "07:00" "22:00"
+defaultopts = Opts "MyCalendar" "@h-scheduler" "07:00" "22:00"
 
 data InsideCommands = OrderedList  (Either (ParseErrorBundle String Void) Ordered)              --(O.ReadM Ordered)
                     | DeadlineList (Either (ParseErrorBundle String Void) Deadline)             
@@ -218,11 +216,11 @@ instance TextShow Duration where
 instance Show Vevent where
     show NoEvent = "No Event"
     show (Vevent stamp uid eclass start (DateStop Nothing) duration desc sum prio seq timet rrule) =
-        unlines ["BEGIN: VEVENT" ,show stamp, show uid, 
-         show eclass,";",show start,";",show duration,show desc ,show prio,show seq
+     unlines ["BEGIN: VEVENT" ,show stamp, show uid, 
+         show eclass,show start, show duration,show desc ,show prio,show seq
         ,show timet,"RECUR:",show rrule,"END:VEVENT"]       
     show (Vevent stamp uid eclass start stop (Duration Nothing) desc sum prio seq timet rrule) =
-        unlines ["BEGIN: VEVENT",show stamp, "UID:",show uid,show eclass,";",show start
+     unlines ["BEGIN: VEVENT",show stamp, "UID:",show uid,show eclass,";",show start
         ,show stop ,show desc,show prio ,show seq,show timet ,"RECUR:",show rrule,"END:VEVENT"]
          
         
@@ -366,8 +364,8 @@ instance Show TZ where
 -- 
 instance Show Vcalendar where
     show (Vcalendar prodid version scale tz events) =
-   unlines ["BEGIN:VCALENDAR",show prodid,"VERSION:","SCALE=",show scale, 
-    ,"TIMEZONE=" ,show tz, show version,printList events,"END:VCALENDAR"]
+     unlines ["BEGIN:VCALENDAR",show prodid,"VERSION:","SCALE=",show scale 
+              ,"TIMEZONE=" ,show tz, show version,printList events,"END:VCALENDAR"]
 
 printList :: Show a => [a] -> String
 printList [] = ""
