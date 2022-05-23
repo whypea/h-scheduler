@@ -188,8 +188,12 @@ getMonthlyDate = do a <- string' "every " *> getMonth
                     return (defvr{rFreq = MONTHLY})
 
 getIntervalDef :: MParser VrRule 
-getIntervalDef = do a <- getInterval 
-                    return (defvr{rFreq = MONTHLY})
+getIntervalDef = do a <- getInterval <* string' " times"
+                    return (defvr{rInterval = a})
+
+getUntilDef :: MParser VrRule 
+getUntilDef = do a <- string' "Until " *> getDateTime 
+                 return (defvr{rUntil = Until . Just $ a})
 
 --TODOMake a big parser which combines these
 ----VEVENT
@@ -308,7 +312,7 @@ getOrdered = do prio <- string' "Priority: " *> L.decimal
 
 getOrderedandRule :: MParser (WithRule Ordered) 
 getOrderedandRule = do ord <- getOrdered
-                       rule <- choice [ ]
+                       rule <- space1 *> choice [Just <$> getWeeklyDate, Just <$> getMonthlyDate, Just <$> getIntervalDef, pure Nothing ]
                        return (WithRule ord rule)
 
 getDeadline :: MParser Deadline
@@ -393,7 +397,7 @@ getYear = do year <- replicateM 4 numberChar
              return (read year :: Integer)
 
 --Here to not cause a dependency cycle
-vrtest = fromMaybe NoRule (parseMaybe (getrRule) "Daily Until 2014-12-15 14:15 Interval 3")
+vrtest = fromMaybe NoRule (parseMaybe (getrRule) "Daily Until 2014-12-31 14:15 Interval 3")
 
 --TODO parse the Vcalendar file
 --TODO withRule parser

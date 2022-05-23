@@ -19,7 +19,8 @@ import Control.Monad.Trans.State
 import Data.Void
 import Control.Applicative
 import Data.Semigroup
-import  Text.Megaparsec
+import Text.Megaparsec
+    ( runParser, errorBundlePretty, ParseErrorBundle )
 import  Text.Megaparsec.Char
 -- import Data.Time
 -- import Data.Void
@@ -30,22 +31,61 @@ import Options.Applicative.Arrows (asA, runA, A (A))
 import qualified Data.Text as T
 import System.IO
 
-import Text.Megaparsec (parseMaybe)
 import InputParsers (getStr, getOrdered, getPrioritized)
 import Data.Maybe (fromMaybe)
 import Control.Monad.Trans.Reader ( ask, runReader )
 import Options.Applicative
 import qualified Options.Applicative as O
 import qualified Options.Applicative.Common as O
-import Solver (econstrSolve)
+import Solver (econstrSolve, solveToCalendarMake)
+import Control.Monad (liftM)
+import Data.IORef (newIORef, IORef, modifyIORef, writeIORef, readIORef)
 
+type OState = State [WithRule Ordered] 
+type DState = State [Deadline] 
+type PState = State [Prioritized]  
+type TState = State [Todo]
 
+initO :: OState ()
+initO =  state (\x -> ((), x))
+
+addO :: WithRule Ordered -> OState ()
+addO x = modify (++[x])
+
+initD :: DState ()
+initD = state (\x -> ((), x))
+
+addD :: Deadline -> DState ()
+addD x = modify (++[x])
+
+initP :: PState ()
+initP = state (\x -> ((), x))
+
+addP :: Prioritized-> PState ()
+addP x = modify (++[x])
+
+initT :: TState ()
+initT = state (\x -> ((), x))
+
+addT :: Todo -> TState ()
+addT x = modify (++[x])
 --A cleaner way to do command courtesy of 
 --https://github.com/haskell-mafia/mafia/blob/master/src/Mafia/Options/Applicative.hs
 command' :: String -> String -> O.Parser a -> O.Mod O.CommandFields a
 command' label description parser =
   O.command label (O.info (parser <**> O.helper) (O.progDesc description))
 
+ordered :: String -> (Either (ParseErrorBundle String Void) (WithRule Ordered))
+ordered = runParser getOrderedandRule "" --(runParser getOrdered "") 
+
+deadline :: String -> (Either (ParseErrorBundle String Void) Deadline)  
+deadline =  runParser getDeadline ""--(runParser getDeadline "") 
+
+priority :: String -> (Either (ParseErrorBundle String Void) Prioritized)
+priority=  runParser getPrioritized "" --(runParser getPrioritized "")  
+
+todo :: String -> (Either (ParseErrorBundle String Void) Todo)
+todo =  runParser getTodo ""
 
 orderedlist :: String -> (Either (ParseErrorBundle String Void) [Ordered])
 orderedlist = runParser getOrderedList "" --(runParser getOrdered "") 
@@ -79,10 +119,10 @@ topOptions = Opts
          <> O.metavar "UID"
          <> O.value "h-scheduler"
          <> O.help "Identifier for the instance" )
-      <*> O.strOption
-          ( O.long "Calendar Start"
-         <> O.short 'c'
-         <> O.help "Start of the calendar, used for starting a calendar")
+    --   <*> O.strOption
+    --       ( O.long "Calendar Start"
+    --      <> O.short 'c'
+    --      <> O.help "Start of the calendar, used for starting a calendar")
       <*> O.strOption
           ( O.long "Wake-up time"
          <> O.short 'w'
@@ -113,55 +153,83 @@ cli :: IO ()
 cli = do 
     go <- O.execParser (O.info commandoptParser (O.fullDesc <> O.progDesc "Description")) 
     case go of 
-        ACO MakeFile opts  -> do let make = makeICS (filename opts)
-                                 workWithHandle opts make
+        ACO MakeFile opts  -> do make <- makeICS (filename opts)
+                                 workWithHandle2 opts make
                                  return ()
         ACO EditFile opts   -> do let edit = editICS (filename opts)
                                   a <- edit
                                   case a of 
-                                    Just h   -> do k <- workWithHandle opts (fromJust <$> edit)
+                                    Just h   -> do workWithHandle2 opts (h)
                                                    return ()
                                     Nothing  -> do putStrLn $ "No file named " ++ (filename opts)   
                                                    return ()
     return ()
 
--- workWithHandle2 :: Opts -> IO Handle -> IO Handle
--- workWithHandle2 opts hdl = do h <- hdl
---                          print ( "Add a list of events with a set date, eg. meetings \n Format:  ")
---                          ord <- getLine
---                          return h
+workWithHandle2 :: Opts -> Handle -> IO ()
+workWithHandle2 opts hdl = do
+                              print ( "use commands ord, dl, pr, td to add various events")
+                              o <- newIORef initO
+                              d <- newIORef initD
+                              p <- newIORef initP
+                              s <- newIORef initT
+                              h <- takeCommand opts o d p s hdl
+                              return h
+
+
+takeCommand :: Opts -> IORef (OState () )-> IORef (DState () )-> IORef (PState () )-> IORef (TState () )->  Handle -> IO ()
+takeCommand opts o d p t h = do
+                        command <- getLine
+                        case words command of --Pattern borrowed from the first code example
+                              ("ord" : []) -> do
+                                              print ( "Add a list of events with a set date, eg. meetings \n Format:  ")
+                                              dline <- getLine 
+                                              case ordered dline of 
+                                                Left bdl -> do print (errorBundlePretty bdl)
+                                                               takeCommand opts o d p t h
+                                                Right ls -> do  writeIORef o (addO ls)
+                                                                takeCommand opts o d p t h
+                              ("dl" : []) -> do
+                                              print ( "Add tasks with a certain date to finish by ")
+                                              dline <- getLine 
+                                              case deadline dline of 
+                                                Left bdl -> do print (errorBundlePretty bdl)
+                                                               takeCommand opts o d p t h
+                                                Right ls -> do writeIORef d (addD ls)
+                                                               takeCommand opts o d p t h
+                              ("pr" : []) -> do
+                                              print ( "Add tasks with some priority")
+                                              dline <- getLine 
+                                              case priority dline of 
+                                                Left bdl -> do print (errorBundlePretty bdl)
+                                                               takeCommand opts o d p t h
+                                                Right ls -> do  writeIORef p (addP ls)
+                                                                takeCommand opts o d p t h
+                              ("td" : []) -> do
+                                              print ( "Add tasks to be done sometime")
+                                              dline <- getLine 
+                                              case todo dline of 
+                                                Left bdl -> do print (errorBundlePretty bdl)
+                                                               takeCommand opts o d p t h
+                                                Right ls -> do  writeIORef t (addT ls)
+                                                                takeCommand opts o d p t h
+                              ("solve" : []) -> do
+                                                  ops <- readIORef o
+                                                  dl <- readIORef d
+                                                  pr <- readIORef p
+                                                  td <- readIORef t
+                                                  hPutStr h $ (show $ solveToCalendarMake opts (exS ops) (exS dl) (exS pr) (exS td))
+                                                  hClose h
+                                                  return ()  
+                              ("exit" : []) -> 
+                                              return ()
+                                        --  _  -> do print "Invalid command" 
+                                        --           takeCommand  
+    where exS x = execState x []
+                              
 
 --econstrSolve .
-
-workWithHandle :: Opts ->  IO Handle -> IO Handle
-workWithHandle opts hdl = do h <- hdl
-                             print ( "Add a list of events with a set date, eg. meetings \n Format:  ")
-                             ord <- getLine
-                             case orderedlist ord of 
-                                Left bdl  -> do print (errorBundlePretty bdl )
-                                                return h
-                                Right ols -> do let order = ols 
-                                                print ("Add tasks with a certain date to finish by")
-                                                dline <- getLine
-                                                case deadlinelist dline of 
-                                                    Left bdl -> do print (errorBundlePretty bdl)
-                                                                   return h
-                                                    Right ls -> do let dll = ls
-                                                                   print ("Add tasks with some priority")
-                                                                   prio <- getLine
-                                                                   case prioritylist prio of 
-                                                                        Left bdl -> do 
-                                                                                       print (errorBundlePretty bdl)
-                                                                                       return h
-                                                                        Right ls -> do let prl = ls
-                                                                                       print ("Add tasks to be done sometime")
-                                                                                       todol <- getLine
-                                                                                       case todolist todol of 
-                                                                                        Left bdl -> do print (errorBundlePretty bdl)
-                                                                                                       return h
-                                                                                        Right ls -> do let tdl = ls
-                                                                                                       return h 
-
+--pass down the lists 
+-- 
 -- parse :: O.Parser a
 -- parse = O.subparser (O.command "string" (O.info O.auto O.parseCommand ))
 

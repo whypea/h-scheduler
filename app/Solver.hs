@@ -108,7 +108,6 @@ timeoverlap (t1, t2) (c1, c2) = diffUTCTime t1 c2 < 0 && diffUTCTime t2 c1 > 0
 schDateCompareW :: WithRule Scheduled -> WithRule Scheduled -> Ordering
 schDateCompareW p1 p2 = compare ((pSET . sEvent .event $ p1)^._2) ((pSET . sEvent . event $ p2)^._2)
 
-
 testRRule' :: VrRule -> (UTCTime, UTCTime) -> [(UTCTime, UTCTime)]
 testRRule' vrr start  = zip (utclist $ fst start) (utclist $ snd start)  
     where freqAdd date = freqAdder (rFreq vrr) date (rInterval vrr)
@@ -135,13 +134,15 @@ freqChecker t rlist = all (== True) $ map (timeoverlap t) rlist
 ----SOLVERS
 ----ordSolve
 
---Finds amount of collisions in the dates
-
 ordGroups :: Opts -> [WithRule Ordered] -> ([WithRule Ordered], [WithRule Ordered])
-ordGroups opts ordered = foldl (\(l, r) x -> if all (timeCompare opts $ oEvent $ event x) (fmap (oEvent . event) r)  == True 
+ordGroups opts ordered = foldl (\(l, r) x -> if all (==True) (fmap (trule x) r) 
+                      && all (timeCompare opts $ oEvent $ event x) (fmap (oEvent . event) r )  == True 
                      then (l,r++[x]) 
                      else (l++[x], r) ) ([], [head ordered]) (tail ordered)
-    -- where sord = sortBy (ordered)
+    where trule x r= case rule r of 
+                     Just s -> freqChecker (pSET. oEvent . event $ x) $ testRRule' s (pSET . oEvent . event $ r)
+                     Nothing ->  True
+    -- checking x against recur: True if no rule, false if any dates overlap
 
 -- Current functions will (should) always assign times (with the exception of clashing ordered and overdue deadline)
 --      as it assigns them greedily on any available timeslots, without any higher bound. 
@@ -216,8 +217,8 @@ haspTime opts (x:xs) dt = if hasTimetest (getsStop . event $ x) (getsStart (even
 
 phelper :: Opts -> DiffTime -> WithRule Scheduled -> (UTCTime, UTCTime)
 phelper opts dt x = if bedh < (utctDayTime . getsStop . event $ x)+dt --if it's past bedtime, add the event in the morning
-               then (addUTCTime (liftTime (bedh - wakeh)) (UTCTime (utctDay . getsStop . event $  x) (bedO opts)), addUTCTime (liftTime (bedh - wakeh + dt)) (UTCTime (utctDay . getsStop . event $ x) (bedh)) )
-               else (getsStop . event $ x, addUTCTime (liftTime dt) (getsStop .event $ x) ) 
+                    then (addUTCTime (liftTime (bedh - wakeh)) (UTCTime (utctDay . getsStop . event $  x) (bedO opts)), addUTCTime (liftTime (bedh - wakeh + dt)) (UTCTime (utctDay . getsStop . event $ x) (bedh)) )
+                    else (getsStop . event $ x, addUTCTime (liftTime dt) (getsStop .event $ x) ) 
     where bedh = bedO opts
           wakeh = wakeO opts
 
@@ -244,8 +245,8 @@ hastdTime opts (x:xs) dt = if hasTimetest (getsStop . event $  x) (getsStart (ev
 
 thelper :: Opts -> DiffTime -> WithRule Scheduled -> (UTCTime, UTCTime)
 thelper opt dt x = if bedh < (utctDayTime . getsStop . event $ x)+dt --if it's past bedtime, add the event in the morning
-              then (addUTCTime (liftTime (bedh - wakeh)) (UTCTime (utctDay . getsStop . event $  x) (bedh)), addUTCTime (liftTime (bedh- wakeh + dt)) (UTCTime (utctDay . getsStop . event $  x) bedh) )
-              else (getsStop . event $ x, addUTCTime (liftTime dt) (getsStop . event $  x) ) 
+                   then (addUTCTime (liftTime (bedh - wakeh)) (UTCTime (utctDay . getsStop . event $  x) (bedh)), addUTCTime (liftTime (bedh- wakeh + dt)) (UTCTime (utctDay . getsStop . event $  x) bedh) )
+                   else (getsStop . event $ x, addUTCTime (liftTime dt) (getsStop . event $  x) ) 
     where bedh = bedO opt
           wakeh = wakeO opt
           
