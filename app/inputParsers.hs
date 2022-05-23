@@ -30,9 +30,6 @@ import Control.Applicative.Permutations
 emptySingle :: (MonadParsec e s m, Token s ~ Char) => Token s -> m () --from source of space 
 emptySingle x = void $ single x
 
--- makeUID :: Opts -> [Char] 
--- makeUID opts = foldr1 (++) [filter dtCond (show $ DT $ unsafePerformIO getCurrentTime), uidID opts] --Documentation doesn't give any side-effects
-
 date :: IO Day -- :: (year,month,day)
 date = getCurrentTime >>=  return . utctDay
 
@@ -78,13 +75,10 @@ nextWeekday wd now = addDays x now
        diff = (fromEnum $ dayOfWeek now) - (fromEnum wd)
 
 getStr :: MParser (Maybe String)
-getStr = Just <$> (some alphaNumChar <* eof)
+getStr = Just <$> (some alphaNumChar <* choice [space, eof])
 
 getStr' :: MParser String
-getStr' = (some alphaNumChar <* eof)
-
--- getStr' :: MParser T.Text
--- getStr' = T.pack $ some alphaNumChar <* eof
+getStr' = (some alphaNumChar <* choice [space, eof])
 
 getDateTime :: MParser UTCTime  
 getDateTime = UTCTime <$> (choice [getISO, getDateMonth, getnDay, getnWeek]) <*> (space1 *> getTimeDay) 
@@ -307,31 +301,35 @@ getDeadlineUTC = do string' "Deadline: "            -- <$> string' "Deadline:" *
 getOrdered :: MParser Ordered
 getOrdered = do prio <- string' "Priority: " *> L.decimal 
                 pair <- (space1 *> getUTCPair) 
-                desc <- (space1 *> getStr)
+                desc <- (space1 *> getStr <* space)
                 return(Ordered (ParseEvent (fromMaybe "" desc) prio pair (utctDayTime(pair^._2) -  utctDayTime(pair^._1))))
 
+-- Priority: Int; start: date-time ; end: date-time; desc: str [every month | every weekday | x times | No Rule]
 getOrderedandRule :: MParser (WithRule Ordered) 
 getOrderedandRule = do ord <- getOrdered
-                       rule <- space1 *> choice [Just <$> getWeeklyDate, Just <$> getMonthlyDate, Just <$> getIntervalDef, pure Nothing ]
+                       rule <- space1 *> choice [Just <$> getWeeklyDate, Just <$> getMonthlyDate, Just <$> getIntervalDef, getNothing]  
                        return (WithRule ord rule)
+
+getNothing :: MParser (Maybe a)
+getNothing = Nothing <$ eof
 
 getDeadline :: MParser Deadline
 getDeadline = do prio <- string' "Priority: " *> L.decimal 
-                 pair <- (space1 *>  getUTCPair)
+                 pair <- (space1 *>  getDeadlineUTC)
                  dur  <- (space1 *> getTimeDay)
-                 desc <- (space1 *> getStr)
+                 desc <- (space1 *> getStr <* space)
                  return(Deadline (ParseEvent (fromMaybe "" desc) prio pair dur))
 
 getPrioritized :: MParser Prioritized
 getPrioritized = do prio <- string' "Priority: " *> L.decimal 
-                    desc <- (space1 *> getStr)
                     dur  <- (space1 *> getTimeDay)
+                    desc <- (space1 *> getStr <* space)
                     return (Prioritized (ParseEvent (fromMaybe "" desc) prio (utczero,utczero) dur))
 
 getTodo :: MParser Todo
 getTodo = do prio <- string' "Priority:" *> L.decimal
-             desc <- (space1 *> getStr)
              dur  <- (space1 *> getTimeDay)
+             desc <- (space1 *> getStr <* space)
              return (Todo (ParseEvent (fromMaybe "" desc) prio (utczero,utczero) dur))
 
 getOrderedList :: MParser [Ordered]

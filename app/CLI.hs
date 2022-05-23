@@ -111,6 +111,7 @@ topOptions = Opts
       <$> O.strOption
           ( O.long "filename"
          <> O.metavar "FILE"
+         <> O.short 'f'
          <> O.value "MyCalendar"
          <> O.help "Filename for the calendar file" )
       <*> O.strOption
@@ -119,10 +120,6 @@ topOptions = Opts
          <> O.metavar "UID"
          <> O.value "h-scheduler"
          <> O.help "Identifier for the instance" )
-    --   <*> O.strOption
-    --       ( O.long "Calendar Start"
-    --      <> O.short 'c'
-    --      <> O.help "Start of the calendar, used for starting a calendar")
       <*> O.strOption
           ( O.long "Wake-up time"
          <> O.short 'w'
@@ -219,11 +216,11 @@ takeCommand opts o d p t h = do
                                                   td <- readIORef t
                                                   hPutStr h $ (show $ solveToCalendarMake opts (exS ops) (exS dl) (exS pr) (exS td))
                                                   hClose h
-                                                  return ()  
-                              ("exit" : []) -> 
-                                              return ()
-                                        --  _  -> do print "Invalid command" 
-                                        --           takeCommand  
+                                                  return ()
+                              ("exit" : []) -> do
+                                                  return ()    
+                              _  -> do print "Invalid command" 
+                                       takeCommand opts o d p t h
     where exS x = execState x []
                               
 

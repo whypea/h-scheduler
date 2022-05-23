@@ -31,22 +31,24 @@ type CState a = State ([WithRule Scheduled], [WithRule Scheduled]) a --Conflicts
 econstrSolve :: Opts -> [WithRule Ordered] -> [Deadline] -> [Prioritized] -> [Todo] -> ([WithRule Scheduled],[WithRule Scheduled]) 
 econstrSolve opts ord dl pr td = execState (tdCheck opts td $ pCheck opts pr $ dcCheck opts dl $ ocCheck opts ord) ([],[])
 
-schToVevent :: Scheduled -> Vevent 
-schToVevent sch = Vevent (DT (getsStart sch)) (UID " ") PUBLIC (DateStart $ getsStart sch) (DateStop $ Just (getsStop sch)) 
-                   (Duration Nothing) (Desc $ Just (desc .sEvent $ sch)) (Summary $ Just (desc .sEvent $ sch)) (Priority (Just (prio . sEvent $ sch))) (EvtSequence Nothing) (Just TRANSPARENT) Nothing
+schToVevent :: Opts -> Scheduled -> Vevent 
+schToVevent opts sch = Vevent (DT (getsStart sch)) (UID $ uidID (getsStart sch) opts  ) PUBLIC (DateStart $ getsStart sch) (DateStop $ Just (getsStop sch)) 
+                   (Duration Nothing) (Desc $ Just (desc .sEvent $ sch)) (Summary $ Just (desc .sEvent $ sch)) (Priority (Just (prio . sEvent $ sch))) (EvtSequence (Just 1)) (Just TRANSPARENT) Nothing
 
-stateToEventR :: ([WithRule Scheduled], [WithRule Scheduled]) -> [Vevent]
-stateToEventR (l, r) = fmap (schToVevent .event)  r
+stateToEventR :: Opts ->([WithRule Scheduled], [WithRule Scheduled]) -> [Vevent]
+stateToEventR opts (l, r) = fmap (schToVevent opts .event)  r
 
-stateToEventL :: ([WithRule Scheduled], [WithRule Scheduled]) -> [Vevent]
-stateToEventL (l, r) = fmap (schToVevent . event) l
+stateToEventL ::Opts -> ([WithRule Scheduled], [WithRule Scheduled]) -> [Vevent]
+stateToEventL opts (l, r) = fmap (schToVevent opts . event) l
 
 eventsToCalendar :: [Vevent] -> Vcalendar
-eventsToCalendar evts = Vcalendar (Prod "") (Version "2") GREGORIAN (TZ (TimeZone 0 False "UTC")) evts 
+eventsToCalendar  evts = Vcalendar (Prod "") (Version "2") GREGORIAN (TZ (TimeZone 0 False "UTC")) evts 
 
 solveToCalendarMake :: Opts -> [WithRule Ordered] -> [Deadline] -> [Prioritized] -> [Todo] -> Vcalendar 
-solveToCalendarMake opts ord dl pr td = eventsToCalendar . stateToEventR $ econstrSolve opts ord dl pr td
+solveToCalendarMake opts ord dl pr td = eventsToCalendar . stateToEventR opts $ econstrSolve opts ord dl pr td
 
+solveToCalendarEdit :: Opts -> Vcalendar -> [WithRule Ordered] -> [Deadline] -> [Prioritized] -> [Todo] -> Vcalendar 
+solveToCalendarEdit opts vc ord dl pr td = eventsToCalendar . stateToEventR opts $ econstrSolve opts ord dl pr td
 
 
 

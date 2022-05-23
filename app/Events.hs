@@ -28,6 +28,7 @@ import Data.Time.Calendar.Julian (DayOfYear)
 import Data.Time.Calendar.OrdinalDate (WeekOfYear)
 import TextShow
 import Options.Applicative as O 
+import GHC.Data.Maybe (fromJust)
 
 dtCond :: Char -> Bool
 dtCond = \x -> x /= '-' && x /= ':'
@@ -79,6 +80,7 @@ data Opts = Opts {
     --,command  :: ActualCommands 
 } 
     deriving Show 
+defaultopts :: Opts
 defaultopts = Opts "MyCalendar" "@h-scheduler" "07:00" "22:00"
 
 data InsideCommands = OrderedList  (Either (ParseErrorBundle String Void) Ordered)              --(O.ReadM Ordered)
@@ -109,7 +111,7 @@ data Vevent = NoEvent | Vevent
     ,eSummary :: Summary
     ,ePrio :: Priority          --P
     ,eSeq :: EvtSequence        --P
-    ,eTimeTrans :: Maybe Transp --P 
+    ,eTimeTrans :: Maybe Transp       --P 
     ,eRRule :: Maybe VrRule     --P
     } 
 
@@ -210,20 +212,27 @@ instance Show Duration where
 instance TextShow Duration where
     showb a = fromString (show a)  
 
--- concat $ zipWith (++) (fmap show [eDTstamp, eUID ,eClass,eDTStart,eDescription,ePrio,eSeq,eTimeTrans,eRecur,eAlarm,eRRule])
--- ["DATETIME","UID:", "CLASS:", "DTSTART:", "DESCRIPTION", "PRIORITY:", "SEQUENCE:", "TRANSP:", "RECUR:", "ALARM:", "RRULE:"]--TODO
-
 instance Show Vevent where
     show NoEvent = "No Event"
     show (Vevent stamp uid eclass start (DateStop Nothing) duration desc sum prio seq timet rrule) =
-     unlines ["BEGIN: VEVENT" ,show stamp, show uid, 
+     deadspace$ unlines ["BEGIN: VEVENT" ,show stamp, show uid, 
          show eclass,show start, show duration,show desc ,show prio,show seq
-        ,show timet,"RECUR:",show rrule,"END:VEVENT"]       
+        ,show (fromJust timet),"RECUR:" ++ show rrule,"END:VEVENT"]       
     show (Vevent stamp uid eclass start stop (Duration Nothing) desc sum prio seq timet rrule) =
-     unlines ["BEGIN: VEVENT",show stamp, "UID:",show uid,show eclass,";",show start
-        ,show stop ,show desc,show prio ,show seq,show timet ,"RECUR:",show rrule,"END:VEVENT"]
+     deadspace$unlines ["BEGIN: VEVENT",show stamp,show uid,show eclass,show start
+        ,show stop ,show desc,show prio ,show seq,show timet ,"RECUR:" ++show rrule,"END:VEVENT"]
+    show (Vevent stamp uid eclass start (DateStop Nothing) duration desc sum prio seq timet Nothing) =
+     deadspace $ unlines ["BEGIN: VEVENT" ,show stamp, show uid, 
+         show eclass,show start, show duration,show desc ,show prio,show seq
+        , show (fromJust timet),"END:VEVENT"]       
+    --  show (Vevent stamp uid eclass start stop (Duration Nothing) desc sum prio seq timet Nothing) =
+    --         unlines ["BEGIN: VEVENT",show stamp, show uid,show eclass,show start
+    --                     ,show stop ,show desc,show prio ,show seq,show (fromJust timet) ,"END:VEVENT"]
          
-        
+deadspace :: [Char] -> [Char]
+deadspace (x:'\n':'\n':xs) = (x:'\n':xs)
+deadspace (x:xs)        = (x:xs) 
+
 
 instance TextShow Vevent where
     showb (Vevent stamp uid eclass start (DateStop Nothing) duration desc sum prio seq timet rrule) = showb stamp <> showb uid <> showb eclass<> showb start 
@@ -364,18 +373,18 @@ instance Show TZ where
 -- 
 instance Show Vcalendar where
     show (Vcalendar prodid version scale tz events) =
-     unlines ["BEGIN:VCALENDAR",show prodid,"VERSION:","SCALE=",show scale 
-              ,"TIMEZONE=" ,show tz, show version,printList events,"END:VCALENDAR"]
+     unlines ["BEGIN:VCALENDAR","PRODID:" ++ show prodid,"VERSION:" ++ show version ,"SCALE=" ++ show scale 
+              ,"TIMEZONE=" ++ show tz, printList events,"END:VCALENDAR"]
 
 printList :: Show a => [a] -> String
 printList [] = ""
-printList (x:xs) = show x ++ "\n" ++ printList xs
+printList (x:xs) = show x  ++ printList xs
 
 --printers
 
 --TODO Change this to an option passed down from CLI (Reader get)
 uidID ::UTCTime -> Opts -> String
-uidID a opts = formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a ++ show (evalState (uidNumber) $ mkStdGen seed )  ++ uidsuffix opts
+uidID a opts = unwords [formatTime defaultTimeLocale "%Y%m%dT%H%M%S" a ,show (evalState (uidNumber) $ mkStdGen seed ), "-", uidsuffix opts]
     where seed = ceiling $ toRational $ utctDayTime a
 
 uidNumber :: State StdGen Int
