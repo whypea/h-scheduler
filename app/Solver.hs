@@ -7,8 +7,6 @@
 
 module Solver where
 
-import qualified Control.Monad.Trans.Class as Trans
-
 import Events
 import Common
 import InputParsers
@@ -138,7 +136,7 @@ freqChecker t rlist = all (== True) $ map (timeoverlap t) rlist
 
 ordGroups :: Opts -> [WithRule Ordered] -> ([WithRule Ordered], [WithRule Ordered])
 ordGroups opts ordered = foldl (\(l, r) x -> if all (==True) (fmap (trule x) r) 
-                      && all (timeCompare opts $ oEvent $ event x) (fmap (oEvent . event) r )  == True 
+                         && all (timeCompare opts $ oEvent $ event x) (fmap (oEvent . event) r )  == True 
                      then (l,r++[x]) 
                      else (l++[x], r) ) ([], [head ordered]) (tail ordered)
     where trule x r= case rule r of 
@@ -181,6 +179,7 @@ dhelper opts dt x
     | otherwise                               = (getsStop . event $ x, addUTCTime (liftTime dt) (getsStop . event $ x) )
     where bedh = bedO opts
           wakeh = bedO opts 
+
 --Add the event to either to state (left - not possible, right - assign time)
 dlAdd :: Opts -> ([WithRule Scheduled], [WithRule Scheduled]) -> Deadline -> WithRule Scheduled
 dlAdd opt (l, r) d = if ht == (utczero, utczero) then passevent 
@@ -216,7 +215,10 @@ haspTime :: Opts ->[WithRule Scheduled] -> DiffTime -> (UTCTime,UTCTime)
 haspTime opts [] dt = (utczero,utczero)
 haspTime opts [x] dt = phelper opts dt x
 haspTime opts (x:xs) dt = if hasTimetest (getsStop . event $ x) (getsStart (event $ head xs)) dt then phelper opts dt x else haspTime opts (xs) dt
-
+ where trule = case rule x of 
+                     Just s -> freqChecker (getsStop . event $ x, autc (liftTime dt) (getsStop . event $ x)) $ testRRule' s (pSET . sEvent . event $ x)
+                     Nothing ->  True 
+       autc  = addUTCTime
 phelper :: Opts -> DiffTime -> WithRule Scheduled -> (UTCTime, UTCTime)
 phelper opts dt x = if bedh < (utctDayTime . getsStop . event $ x)+dt --if it's past bedtime, add the event in the morning
                     then (addUTCTime (liftTime (bedh - wakeh)) (UTCTime (utctDay . getsStop . event $  x) (bedO opts)), addUTCTime (liftTime (bedh - wakeh + dt)) (UTCTime (utctDay . getsStop . event $ x) (bedh)) )
@@ -244,7 +246,11 @@ hastdTime :: Opts -> [WithRule Scheduled] -> DiffTime -> (UTCTime,UTCTime)
 hastdTime opts [] dt = (utczero,utczero)
 hastdTime opts [x] dt = thelper opts dt x
 hastdTime opts (x:xs) dt = if hasTimetest (getsStop . event $  x) (getsStart (event $ head xs)) dt then thelper opts dt x else hastdTime opts (xs) dt
-
+ where trule = case rule x of 
+                     Just s -> freqChecker (getsStop . event $ x, autc (liftTime dt) (getsStop . event $ x)) $ testRRule' s (pSET . sEvent . event $ x)
+                     Nothing ->  True 
+       autc  = addUTCTime
+ 
 thelper :: Opts -> DiffTime -> WithRule Scheduled -> (UTCTime, UTCTime)
 thelper opt dt x = if bedh < (utctDayTime . getsStop . event $ x)+dt --if it's past bedtime, add the event in the morning
                    then (addUTCTime (liftTime (bedh - wakeh)) (UTCTime (utctDay . getsStop . event $  x) (bedh)), addUTCTime (liftTime (bedh- wakeh + dt)) (UTCTime (utctDay . getsStop . event $  x) bedh) )

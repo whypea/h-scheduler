@@ -81,7 +81,7 @@ getStr' :: MParser String
 getStr' = (some alphaNumChar <* choice [space, eof])
 
 getDateTime :: MParser UTCTime  
-getDateTime = UTCTime <$> (choice [getISO, getDateMonth, getnDay, getnWeek]) <*> (space1 *> getTimeDay) 
+getDateTime = UTCTime <$> (choice [getDateMonth, getnDay, getnWeek,getISO]) <*> (space1 *> getTimeDay) 
 
 getTimeDay :: MParser DiffTime 
 getTimeDay = do x <- getHour
@@ -182,14 +182,13 @@ getMonthlyDate = do a <- string' "every " *> getMonth
                     return (defvr{rFreq = MONTHLY})
 
 getIntervalDef :: MParser VrRule 
-getIntervalDef = do a <- getInterval <* string' " times"
-                    return (defvr{rInterval = a})
+getIntervalDef = do a <- getNumType <* string' " times"
+                    return (defvr{rInterval = Interval $ a})
 
 getUntilDef :: MParser VrRule 
 getUntilDef = do a <- string' "Until " *> getDateTime 
                  return (defvr{rUntil = Until . Just $ a})
 
---TODOMake a big parser which combines these
 ----VEVENT
 
 -- getVevent :: MParser Vevent
@@ -295,11 +294,11 @@ getUTCPair = (,) <$> (string' "start: " *> getDateTime ) <*> (space1 *> string' 
 
 getDeadlineUTC :: MParser (UTCTime, UTCTime)
 getDeadlineUTC = do string' "Deadline: "            -- <$> string' "Deadline:" *> utczero <*> getDateTime 
-                    dead <- (space1 *> getDateTime)
+                    dead <- (getDateTime)
                     return(utczero, dead)
 
 getOrdered :: MParser Ordered
-getOrdered = do prio <- string' "Priority: " *> L.decimal 
+getOrdered = do prio <- string' "P: " *> L.decimal 
                 pair <- (space1 *> getUTCPair) 
                 desc <- (space1 *> getStr <* space)
                 return(Ordered (ParseEvent (fromMaybe "" desc) prio pair (utctDayTime(pair^._2) -  utctDayTime(pair^._1))))
@@ -307,31 +306,34 @@ getOrdered = do prio <- string' "Priority: " *> L.decimal
 -- Priority: Int; start: date-time ; end: date-time; desc: str [every month | every weekday | x times | No Rule]
 getOrderedandRule :: MParser (WithRule Ordered) 
 getOrderedandRule = do ord <- getOrdered
-                       rule <- space1 *> choice [Just <$> getWeeklyDate, Just <$> getMonthlyDate, Just <$> getIntervalDef, getNothing]  
+                       rule <- choice [Just <$> getWeeklyDate, Just <$> getMonthlyDate, Just <$> getIntervalDef, getNothing]  
                        return (WithRule ord rule)
 
 getNothing :: MParser (Maybe a)
 getNothing = Nothing <$ eof
 
 getDeadline :: MParser Deadline
-getDeadline = do prio <- string' "Priority: " *> L.decimal 
+getDeadline = do prio <- string' "P: " *> L.decimal 
                  pair <- (space1 *>  getDeadlineUTC)
                  dur  <- (space1 *> getTimeDay)
                  desc <- (space1 *> getStr <* space)
                  return(Deadline (ParseEvent (fromMaybe "" desc) prio pair dur))
 
+--
 getPrioritized :: MParser Prioritized
-getPrioritized = do prio <- string' "Priority: " *> L.decimal 
+getPrioritized = do prio <- string' "P: " *> L.decimal 
                     dur  <- (space1 *> getTimeDay)
                     desc <- (space1 *> getStr <* space)
                     return (Prioritized (ParseEvent (fromMaybe "" desc) prio (utczero,utczero) dur))
 
 getTodo :: MParser Todo
-getTodo = do prio <- string' "Priority:" *> L.decimal
+getTodo = do prio <- string' "P:" *> L.decimal
              dur  <- (space1 *> getTimeDay)
              desc <- (space1 *> getStr <* space)
              return (Todo (ParseEvent (fromMaybe "" desc) prio (utczero,utczero) dur))
 
+
+---Not really in use, so I won't test them
 getOrderedList :: MParser [Ordered]
 getOrderedList = do a <- many getOrdered
                     return a
@@ -396,9 +398,6 @@ getYear = do year <- replicateM 4 numberChar
 
 --Here to not cause a dependency cycle
 vrtest = fromMaybe NoRule (parseMaybe (getrRule) "Daily Until 2014-12-31 14:15 Interval 3")
-
---TODO parse the Vcalendar file
---TODO withRule parser
 
 
 -----Clutter

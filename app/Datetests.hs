@@ -20,7 +20,7 @@ utcdates =  [(UTCTime (fg 2014 12 12) (stdt 200),UTCTime (fg 2014 12 12) (stdt 2
 
 --clashing time works, but removes both dates
 orddates :: [WithRule Ordered]
-orddates =  fmap wrvrrtest [ Ordered $ (ParseEvent ("ord") 4 (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)) 3000 ),
+orddates =  fmap wrnoRule [ Ordered $ (ParseEvent ("ord") 4 (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)) 3000 ),
             Ordered $ (ParseEvent ("ord1") 4 (UTCTime (fg 2014 12 12) (stdt 33400), UTCTime (fg 2014 12 12) (stdt 36400)) 3000 ),
             Ordered $ (ParseEvent ("ord2") 4 (UTCTime (fg 2014 12 12) (stdt 72100), UTCTime (fg 2014 12 12) (stdt 75700)) 3000 ), 
             Ordered $ (ParseEvent ("ord3") 4 (UTCTime (fg 2014 12 12) (stdt 44200), UTCTime (fg 2014 12 12) (stdt 47200)) 3000 ) 

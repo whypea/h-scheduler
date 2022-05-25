@@ -87,17 +87,17 @@ priority=  runParser getPrioritized "" --(runParser getPrioritized "")
 todo :: String -> (Either (ParseErrorBundle String Void) Todo)
 todo =  runParser getTodo ""
 
-orderedlist :: String -> (Either (ParseErrorBundle String Void) [Ordered])
-orderedlist = runParser getOrderedList "" --(runParser getOrdered "") 
+-- orderedlist :: String -> (Either (ParseErrorBundle String Void) [Ordered])
+-- orderedlist = runParser getOrderedList "" --(runParser getOrdered "") 
 
-deadlinelist :: String -> (Either (ParseErrorBundle String Void) [Deadline])  
-deadlinelist =  runParser getDeadlineList ""--(runParser getDeadline "") 
+-- deadlinelist :: String -> (Either (ParseErrorBundle String Void) [Deadline])  
+-- deadlinelist =  runParser getDeadlineList ""--(runParser getDeadline "") 
 
-prioritylist :: String -> (Either (ParseErrorBundle String Void) [Prioritized])
-prioritylist =  runParser getPrioritizedList "" --(runParser getPrioritized "")  
+-- prioritylist :: String -> (Either (ParseErrorBundle String Void) [Prioritized])
+-- prioritylist =  runParser getPrioritizedList "" --(runParser getPrioritized "")  
 
-todolist :: String -> (Either (ParseErrorBundle String Void) [Todo])
-todolist =  runParser getTodoList ""
+-- todolist :: String -> (Either (ParseErrorBundle String Void) [Todo])
+-- todolist =  runParser getTodoList ""
 
 actCommands :: O.Parser ActualCommands
 actCommands =  O.subparser 
@@ -178,34 +178,38 @@ takeCommand opts o d p t h = do
                         command <- getLine
                         case words command of --Pattern borrowed from the first code example
                               ("ord" : []) -> do
-                                              print ( "Add a list of events with a set date, eg. meetings \n Format:  ")
+                                              print ( "Add a list of events with a set date, eg. meetings Format:  ")
+                                              print ("P(riority): Int; start: date-time ; end: date-time; desc: str [every month | every weekday | x times | No Rule]")
                                               dline <- getLine 
                                               case ordered dline of 
-                                                Left bdl -> do print (errorBundlePretty bdl)
+                                                Left bdl -> do print (T.pack $ errorBundlePretty bdl)
                                                                takeCommand opts o d p t h
                                                 Right ls -> do  writeIORef o (addO ls)
                                                                 takeCommand opts o d p t h
                               ("dl" : []) -> do
                                               print ( "Add tasks with a certain date to finish by ")
+                                              print ("P(riority): Int; Deadline: date-time ; duration:hh:mm ")
                                               dline <- getLine 
                                               case deadline dline of 
-                                                Left bdl -> do print (errorBundlePretty bdl)
+                                                Left bdl -> do print (T.pack $ errorBundlePretty bdl)
                                                                takeCommand opts o d p t h
                                                 Right ls -> do writeIORef d (addD ls)
                                                                takeCommand opts o d p t h
                               ("pr" : []) -> do
-                                              print ( "Add tasks with some priority")
+                                              print ( "Add tasks with some precedence")
+                                              print ("P(recedence): Int; duration: hh:mm ; desc: String")
                                               dline <- getLine 
                                               case priority dline of 
-                                                Left bdl -> do print (errorBundlePretty bdl)
+                                                Left bdl -> do print  (T.pack $ errorBundlePretty bdl)
                                                                takeCommand opts o d p t h
                                                 Right ls -> do  writeIORef p (addP ls)
                                                                 takeCommand opts o d p t h
                               ("td" : []) -> do
                                               print ( "Add tasks to be done sometime")
+                                              print ("P(riority): Int; duration: hh:mm; desc: String")
                                               dline <- getLine 
                                               case todo dline of 
-                                                Left bdl -> do print (errorBundlePretty bdl)
+                                                Left bdl -> do print (T.pack $ errorBundlePretty bdl)
                                                                takeCommand opts o d p t h
                                                 Right ls -> do  writeIORef t (addT ls)
                                                                 takeCommand opts o d p t h

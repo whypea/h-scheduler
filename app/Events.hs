@@ -269,11 +269,11 @@ data Vrfreq = HOURLY | DAILY | WEEKLY | MONTHLY | YEARLY
  deriving (Eq, Ord)
 
 instance Show Vrfreq where 
-    show (HOURLY) = "FREQ=HOURLY"
-    show (DAILY) = "FREQ=DAILY"
-    show (WEEKLY) = "FREQ=WEEKLY"
-    show (MONTHLY) = "FREQ=MONTHLY"
-    show (YEARLY) = "FREQ=YEARLY"
+    show (HOURLY) = "FREQ=HOURLY;"
+    show (DAILY) = "FREQ=DAILY;"
+    show (WEEKLY) = "FREQ=WEEKLY;"
+    show (MONTHLY) = "FREQ=MONTHLY;"
+    show (YEARLY) = "FREQ=YEARLY;"
 
 
 newtype Until = Until (Maybe UTCTime)
